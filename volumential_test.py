@@ -51,7 +51,7 @@ def main():
 
     logger.info("Creating volume potential")
     f_pot = VolumePotential(f, V, operator_data=potential_data)
-    f_pot.evaluate()
+    f_pot.evaluate(continuity_tolerance=1e-8)
 
 
 if __name__ == '__main__':
