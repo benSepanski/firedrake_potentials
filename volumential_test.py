@@ -33,7 +33,7 @@ def main():
     logger.info("sol_expr : %s" % sol_expr)
 
     logger.info("Building FunctionSpace")
-    V = FunctionSpace(m, 'CG', 9)
+    V = FunctionSpace(m, 'CG', 6)
     logger.info("interpolating source and solution")
     source = Function(V).interpolate(source_expr)
     sol = Function(V).interpolate(sol_expr)
@@ -60,7 +60,7 @@ def main():
             'adaptive_level': False,
             'use_symmetry': True,
             'alpha': 0.1,
-            'n_levels': 15,
+            'nlevels': 15,
             },
         'fmm_kwargs': {},
         }
