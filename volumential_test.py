@@ -32,14 +32,23 @@ def main():
     logger.info("source_expr : %s" % source_expr)
     logger.info("sol_expr : %s" % sol_expr)
 
-    logger.info("Building FunctionSpace")
-    V = FunctionSpace(m, 'CG', 6)
+    order = 8
+    logger.info(f"Building FunctionSpace of order {order}")
+    fspace = FunctionSpace(m, 'CG', order)
     logger.info("interpolating source and solution")
-    source = Function(V).interpolate(source_expr)
-    sol = Function(V).interpolate(sol_expr)
+    source = Function(fspace).interpolate(source_expr)
+    sol = Function(fspace).interpolate(sol_expr)
 
     from sumpy.kernel import LaplaceKernel
     kernel = LaplaceKernel(m.geometric_dimension())
+
+    # We could set to a custom group factory if we wanted to,
+    # defaults to recursive nodes with 'lgl' nodes
+    #
+    # from meshmode.discretization.poly_element import (
+    #     PolynomialWarpAndBlendGroupFactory)
+    # grp_factory = PolynomialWarpAndBlendGroupFactory(order)
+    grp_factory = None
 
     # Build VolumePotential external operator
     cl_ctx = cl.create_some_context()
@@ -51,7 +60,8 @@ def main():
         'queue': queue,
         'nlevels': 6,
         'm_order': 20,
-        'dataset_filename': "laplace.hdf5",
+        'dataset_filename': f"laplace-order{order}.hdf5",
+        'grp_factory': grp_factory,
         'root_extent': 2,
         'table_compute_method': "DrosteSum",
         'table_kwargs': {
@@ -66,7 +76,7 @@ def main():
         }
 
     logger.info("Creating volume potential")
-    pot = VolumePotential(source, V, operator_data=potential_data)
+    pot = VolumePotential(source, fspace, operator_data=potential_data)
     logger.info("Evaluating potential")
     pot.evaluate(continuity_tolerance=1e-8)
 
