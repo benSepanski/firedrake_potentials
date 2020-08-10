@@ -32,7 +32,7 @@ def main():
     logger.info("source_expr : %s" % source_expr)
     logger.info("sol_expr : %s" % sol_expr)
 
-    order = 8
+    order = 4
     logger.info(f"Building FunctionSpace of order {order}")
     fspace = FunctionSpace(m, 'CG', order)
     logger.info("interpolating source and solution")
@@ -77,11 +77,13 @@ def main():
 
     logger.info("Creating volume potential")
     pot = VolumePotential(source, fspace, operator_data=potential_data)
-    logger.info("Evaluating potential")
-    pot.evaluate(continuity_tolerance=1e-8)
 
-    max_nodal_diff = np.max(np.abs(pot.dat.data - sol.dat.data))
-    print("Max nodal difference: %e" % max_nodal_diff)
+    logger.info("Evaluating potential and assembling L^2 Error")
+    ell2_difference = sqrt(assemble(inner(pot - sol, pot - sol) * dx))
+    print("L^2 difference: %e" % ell2_difference)
+
+    logger.info("Evaluating potential and testing projection DG->CG space")
+    pot.evaluate(continuity_tolerance=1e-8)
 
 
 if __name__ == '__main__':
