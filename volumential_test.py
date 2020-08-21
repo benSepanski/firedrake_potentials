@@ -26,7 +26,7 @@ def main():
     if dim == 2:
         m = UnitSquareMesh(32, 32)
     elif dim == 3:
-        m = UnitCubeMesh(32, 32, 32)
+        m = UnitCubeMesh(16, 16, 16)
     else:
         raise ValueError("dim must be 2 or 3, not %s" % dim)
     # get spatial coordinate, shifted so that [0,1]^2 -> [-0.5,0.5]^2
@@ -42,7 +42,7 @@ def main():
     logger.info("sol_expr : %s" % sol_expr)
 
     logger.info(f"Building FunctionSpace of order {order}")
-    fspace = FunctionSpace(m, 'CG', order)
+    fspace = FunctionSpace(m, 'DG', order)
     logger.info("interpolating source and solution")
     source = Function(fspace).interpolate(source_expr)
     sol = Function(fspace).interpolate(sol_expr)
@@ -89,8 +89,6 @@ def main():
     logger.info("Evaluating potential and assembling L^2 Error")
     ell2_difference = sqrt(assemble(inner(pot - sol, pot - sol) * dx))
 
-    logger.info("Evaluating potential and testing projection DG->CG space")
-    pot.evaluate(continuity_tolerance=1e-8)
     print("L^2 difference: %e" % ell2_difference)
 
 
