@@ -4,7 +4,7 @@ import pyopencl as cl
 
 from firedrake import (
     UnitSquareMesh, SpatialCoordinate, UnitCubeMesh, as_tensor,
-    exp, FunctionSpace, Function,
+    errornorm, exp, FunctionSpace, Function,
     VolumePotential, sqrt, assemble, inner, dx)
 
 
@@ -19,7 +19,7 @@ else:
 
 def main():
     # make function space and function
-    dim = 3  # 2 or 3
+    dim = 2 # 2 or 3
     order = 1
 
     logger.info(f"building {dim}D source and solution exprs")
@@ -33,7 +33,7 @@ def main():
     xx = SpatialCoordinate(m)
     shifted_xx = as_tensor([xx_i - 0.5 for xx_i in xx])
     norm2 = sum([xx_i * xx_i for xx_i in shifted_xx])
-    alpha = 160
+    alpha = 10
     source_expr = -(4 * alpha ** 2 * norm2 - 2 * dim * alpha) * exp(
         -alpha * norm2)
     sol_expr = exp(-alpha * norm2)
@@ -84,13 +84,13 @@ def main():
         }
 
     logger.info("Creating volume potential")
-    pot = VolumePotential(source, fspace, operator_data=potential_data)
+    # pot = VolumePotential(source, function_space=source.function_space(), operator_data=potential_data)
 
-    logger.info("Evaluating potential and assembling L^2 Error")
-    ell2_difference = sqrt(assemble(inner(pot - sol, pot - sol) * dx))
+    # logger.info("Evaluating potential and assembling L^2 Error")
+    # ell2_difference = sqrt(assemble(inner(pot - sol, pot - sol) * dx))
 
-    print("L^2 difference: %e" % ell2_difference)
-
+    # print("L^2 difference: %e" % ell2_difference)
+    print("interpolation error: %e" % errornorm(sol_expr, sol))
 
 if __name__ == '__main__':
     main()
