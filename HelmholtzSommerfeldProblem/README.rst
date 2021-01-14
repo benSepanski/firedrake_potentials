@@ -1,6 +1,33 @@
-The following is instructions for run_trial.py.
-Most of it also pertains to multiprocessing_run_trial.py,
-except for a few noted exceptions.
+Installation
+============
+
+First install complex firedrake.
+
+.. code-block:: bash
+    curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
+    python3 firedrake-install --complex 
+
+Next install [meshmode](https://github.com/inducer/meshmode) and
+[pyamg](https://github.com/pyamg/pyamg).
+
+.. code-block:: bash
+   source firedrake/bin/activate
+   hash -r; for i in modepy pyvisfile boxtree sumpy meshmode pytential ; do
+       python -m pip install git+https://github.com/inducer/$i.git; 
+   done
+   pip install pyamg
+
+Run :code:`pip list | grep loo`. If you see both :code:`loo.py` and :code:`loopy`,
+run :code:`pip uninstall loopy`. Run :code:`pip list | grep loo` again, and you should
+no longer see :code:`loopy`.
+
+
+
+.. note::
+
+    The following is instructions for run_trial.py.
+    Most of it also pertains to multiprocessing_run_trial.py,
+    except for a few noted exceptions.
 
 Specifying Trials to Run
 ========================
