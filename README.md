@@ -6,10 +6,12 @@
 This will get Nacime’s branch of firedrake 
 (from the [pointwise adjoint operator PR](https://github.com/firedrakeproject/firedrake/pull/1674))
 with volumential and meshmode installed.
+We also install [pyamg](https://github.com/pyamg/pyamg).
 ```bash
 curl -O https://raw.githubusercontent.com/benSepanski/firedrake/pointwise-adjoint-operator-layer-potentials/scripts/firedrake-install
-python3 firedrake-install --nonlocal-operator-dependencies --package-branch firedrake pointwise-adjoint-operator --package-branch PyOP2 DataCarrier-object-versionning --package-branch pyadjoint pointwise-adjoint-operator --package-branch tsfc pointwise-operators --package-branch ufl external-operator
+python3 firedrake-install --complex --nonlocal-operator-dependencies --package-branch firedrake pointwise-adjoint-operator --package-branch PyOP2 DataCarrier-object-versionning --package-branch pyadjoint pointwise-adjoint-operator --package-branch tsfc pointwise-operators --package-branch ufl external-operator
 source firedrake/bin/activate
+pip install pyamg
 ```
 While we wait for a few loopy pulls to go through, we should also grab my branch of loopy
 (right now, meshmode works with a few very small fixes to firedrake's loopy branch).

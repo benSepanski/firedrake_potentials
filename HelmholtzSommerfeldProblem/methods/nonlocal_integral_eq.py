@@ -4,9 +4,6 @@ from firedrake.petsc import PETSc, OptionsManager
 from sumpy.kernel import HelmholtzKernel
 from .preconditioners.two_D_helmholtz import AMGTransmissionPreconditioner
 
-import fd2mm
-
-
 def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                          options_prefix=None, solver_parameters=None,
                          fspace=None, vfspace=None,
@@ -129,7 +126,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             self.grad_potential_int_dg.dat.data[:] = 0.0
 
             # and some meshmode ones
-            from meshmode.dof_array
             self.x_mm_fntn = self.meshmode_src_connection.empty()
             self.potential_int_mm = self.meshmode_tgt_connection.empty()
             self.grad_potential_int_mm = self.meshmode_tgt_connection.empty_like(np.array([1.0, 2.0, 3.0], dtype='c'))
@@ -144,7 +140,7 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                                                         out=self.x_mm_fntn)
             # Apply the operation
             self.potential_int_mm = self.pyt_op(self.actx,
-                                                u=self.x_mm_fntn
+                                                u=self.x_mm_fntn,
                                                 k=self.k)
             self.grad_potential_int_mm = self.pyt_grad_op(self.actx,
                                                           u=self.x_mm_fntn,

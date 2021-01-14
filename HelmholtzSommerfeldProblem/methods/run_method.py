@@ -2,8 +2,6 @@ from math import log
 from firedrake import FunctionSpace, VectorFunctionSpace, Function, grad, \
     TensorFunctionSpace
 
-import fd2mm
-
 from .pml import pml
 from .nonlocal_integral_eq import nonlocal_integral_eq
 from .transmission import transmission
