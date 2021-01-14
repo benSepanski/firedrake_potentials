@@ -1,3 +1,6 @@
+# Directory Layout
+
+
 # Installation
 
 This will get Nacime’s branch of firedrake 
