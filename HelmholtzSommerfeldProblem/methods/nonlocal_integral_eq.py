@@ -28,7 +28,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         \Delta u - \kappa^2 \gamma u = 0
         (\partial_n - i\kappa\beta) u |_\Sigma = 0
     """
-    with_refinement = True
     # away from the excluded region, but firedrake and meshmode point
     # into
     pyt_inner_normal_sign = -1
@@ -40,13 +39,7 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
 
     # Build the qbx for the source
     from pytential.qbx import QBXLayerPotentialSource
-    qbx = QBXLayerPotentialSource(meshmode_src_connection.discr, qbx_kwargs)
-
-    # If refining, build that connection too
-    refinement_connection = None
-    if with_refinement:
-        from meshmode.discretization.connection import ChainedDiscretizationConnection
-        qbx, refinement_connection = qbx.with_refinement()
+    qbx = QBXLayerPotentialSource(meshmode_src_connection.discr, **qbx_kwargs)
 
     # Target is just the target discretization
     target = meshmode_tgt_connection.discr
