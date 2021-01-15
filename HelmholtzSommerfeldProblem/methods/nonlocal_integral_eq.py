@@ -1,26 +1,60 @@
+import numpy as np
+
 from firedrake import Function, FacetNormal, TestFunction, assemble, inner, ds, \
-    TrialFunction, grad, dx, Constant
+    TrialFunction, grad, dx, Constant, SpatialCoordinate, VectorFunctionSpace
 from firedrake.petsc import PETSc, OptionsManager
+
+from pytential.target import PointsTarget
+
 from sumpy.kernel import HelmholtzKernel
+
 from .preconditioners.two_D_helmholtz import AMGTransmissionPreconditioner
+
+
+def get_target_points_and_indices(fspace, boundary_id):
+    """
+    Get  the points from the function space which lie on the given boundary
+    id as a pytential PointsTarget, and their indices into the
+    firedrake function
+
+    :return: (target_indices, target_points)
+    """
+    # Check that bdy id is valid
+    if boundary_id not in set(fspace.mesh().exterior_facets.unique_markers):
+        warn("%s is not an exterior facet ids: %s" % boundary_id)
+
+    target_indices = fspace.boundary_nodes(boundary_id, 'topological')
+    target_indices = np.array(target_indices, dtype=np.int32)
+
+    # Get coordinates of nodes
+    coords = SpatialCoordinate(fspace.mesh())
+    function_space_dim = VectorFunctionSpace(
+        fspace.mesh(),
+        fspace.ufl_element().family(),
+        degree=fspace.ufl_element().degree())
+
+    coords = Function(function_space_dim).interpolate(coords)
+    coords = np.real(coords.dat.data)
+
+    target_pts = coords[target_indices]
+    # change from [nnodes][ambient_dim] to [ambient_dim][nnodes]
+    target_pts = np.transpose(target_pts).copy()
+    return (target_indices, PointsTarget(target_pts))
+
 
 def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                          options_prefix=None, solver_parameters=None,
                          fspace=None, vfspace=None,
                          true_sol_grad=None,
-                         actx=None, 
+                         actx=None,
                          dgfspace=None,
                          dgvfspace=None,
-                         meshmode_src_connection=None,
-                         meshmode_tgt_connection=None,
                          qbx_kwargs=None,
                          ):
     r"""
         see run_method for descriptions of unlisted args
 
         args:
-
-        :arg actx: A pyopencl array context for the computing
 
         gamma and beta are used to precondition
         with the following equation:
@@ -34,17 +68,32 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
 
     ambient_dim = mesh.geometric_dimension()
 
-    # {{{ Create operator
-    from pytential import sym, bind
+    # {{{ Build src and tgt 
 
-    # Build the qbx for the source
+    # Build connection fd -> meshmode near src boundary
+    from meshmode.interop.firedrake import build_connection_from_firedrake
+    meshmode_src_connection = build_connection_from_firedrake(
+        actx,
+        dgfspace,
+        grp_factory=None,
+        restrict_to_boundary=scatterer_bdy_id)
+    # build connection meshmode near src boundary -> src boundary inside meshmode
+    from meshmode.discretization.poly_element import \
+        InterpolatoryQuadratureSimplexGroupFactory
+    from meshmode.discretization.connection import make_face_restriction
+    factory = InterpolatoryQuadratureSimplexGroupFactory(dgfspace.finat_element.degree)
+    src_bdy_connection = make_face_restriction(actx, meshmode_src_connection.discr, factory, scatterer_bdy_id)
+    # source is a qbx layer potential
     from pytential.qbx import QBXLayerPotentialSource
-    qbx = QBXLayerPotentialSource(meshmode_src_connection.discr, **qbx_kwargs)
+    qbx = QBXLayerPotentialSource(src_bdy_connection.to_discr, **qbx_kwargs)
 
-    # Target is just the target discretization
-    target = meshmode_tgt_connection.discr
+    # get target indices and point-set
+    target_indices, target = get_target_points_and_indices(fspace, outer_bdy_id)
+
+    # }}}
 
     # build the operations
+    from pytential import bind, sym
     r"""
     ..math:
 
@@ -97,7 +146,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             self.pyt_grad_op = pyt_grad_op
             self.A = A
             self.meshmode_src_connection = meshmode_src_connection
-            self.meshmode_tgt_connection = meshmode_tgt_connection
 
             # {{{ Create some functions needed for multing
             self.x_fntn = Function(fspace)
@@ -112,16 +160,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             self.n = FacetNormal(mesh)
             self.v = TestFunction(fspace)
 
-            # DG
-            self.potential_int_dg = Function(dgfspace)
-            self.potential_int_dg.dat.data[:] = 0.0
-            self.grad_potential_int_dg = Function(dgvfspace)
-            self.grad_potential_int_dg.dat.data[:] = 0.0
-
-            # and some meshmode ones
+            # some meshmode ones
             self.x_mm_fntn = self.meshmode_src_connection.empty()
-            self.potential_int_mm = self.meshmode_tgt_connection.empty()
-            self.grad_potential_int_mm = self.meshmode_tgt_connection.empty_like(np.array([1.0, 2.0, 3.0], dtype='c'))
 
             # }}}
 
@@ -131,20 +171,19 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             # Transfer the function to meshmode
             self.meshmode_src_connection.from_firedrake(project(self.x_fntn, dgfspace),
                                                         out=self.x_mm_fntn)
+            # Restrict to boundary
+            x_mm_fntn_on_bdy = src_bdy_connection(self.x_mm_fntn)
+
             # Apply the operation
-            self.potential_int_mm = self.pyt_op(self.actx,
-                                                u=self.x_mm_fntn,
-                                                k=self.k)
-            self.grad_potential_int_mm = self.pyt_grad_op(self.actx,
-                                                          u=self.x_mm_fntn,
-                                                          k=self.k)
-            # Transfer function back to firedrake
-            self.meshmode_tgt_connection.from_meshmode(self.potential_int_mm,
-                                                       out=self.potential_int_dg)
-            self.meshmode_tgt_connection.from_meshmode(self.grad_potential_int_mm,
-                                                       out=self.grad_potential_int_dg)
-            self.potential_int = project(self.potential_int_dg, fspace)
-            self.grad_potential_int = project(self.grad_potential_int_dg, fspace)
+            potential_int_mm_on_bdy = self.pyt_op(self.actx,
+                                                  u=self.x_mm_fntn_on_bdy,
+                                                  k=self.k)
+            grad_potential_int_mm_on_bdy = self.pyt_grad_op(self.actx,
+                                                            u=self.x_mm_fntn_on_bdy,
+                                                            k=self.k)
+            # Store in firedrake
+            self.potential_int[target_indices] = potential_int_mm[:]
+            self.grad_potential_int[target_indices] = grad_potential_int_mm[:]
 
             # Integrate the potential
             r"""
@@ -221,7 +260,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
 
     # Remember f is \partial_n(true_sol)|_\Gamma
     # so we just need to compute \int_\Gamma\partial_n(true_sol) H(x-y)
-    from pytential import sym
 
     sigma = sym.make_sym_vector("sigma", ambient_dim)
     r"""
@@ -270,8 +308,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     f_grad_convoluted_mm = rhs_grad_op(actx, sigma=sigma, k=wave_number)
     f_convoluted_mm = rhs_op(actx, sigma=sigma, k=wave_number)
     # Transfer function back to firedrake
-    meshmode_tgt_connection.from_meshmode(f_grad_convoluted_mm, out=f_grad_convoluted)
-    meshmode_tgt_connection.from_meshmode(f_convoluted_mm, f_convoluted)
+    f_grad_convoluted_mm.dat.data[target_indices] = f_grad_convoluted_mm[:]
+    f_convoluted_mm.dat.data[target_indices] = f_convoluted_mm[:]
 
     r"""
         \langle

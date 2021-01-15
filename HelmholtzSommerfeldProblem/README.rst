@@ -21,6 +21,16 @@ Run :code:`pip list | grep loo`. If you see both :code:`loo.py` and :code:`loopy
 run :code:`pip uninstall loopy`. Run :code:`pip list | grep loo` again, and you should
 no longer see :code:`loopy`.
 
+While we wait for a few loopy pulls to go through, we should also grab my branch of loopy
+(right now, meshmode works with a few very small fixes to firedrake's loopy branch).
+.. code-block:: bash
+    cd firedrake/src/loopy
+    git remote add sepanski_fork https://github.com/benSepanski/loopy.git
+    git fetch sepanski_fork firedrake-usable_for_potentials
+    git checkout firedrake-usable_for_potentials
+
+    cd ..
+    pip install -e loopy/
 
 
 .. note::

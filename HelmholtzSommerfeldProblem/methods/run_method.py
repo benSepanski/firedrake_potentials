@@ -147,21 +147,6 @@ def run_method(trial, method, wave_number,
 
         dgfspace = memoized_objects[memo_key]['dgfspace']
         dgvfspace = memoized_objects[memo_key]['dgvfspace']
-        
-        # Build connections
-        from meshmode.interop.firedrake import build_connection_from_firedrake
-        from meshmode.array_context import PyOpenCLArrayContext
-        actx = PyOpenCLArrayContext(queue)
-        meshmode_src_connection = build_connection_from_firedrake(
-            actx,
-            dgfspace,
-            grp_factory=None,
-            restrict_to_boundary=scatterer_bdy_id)
-        meshmode_tgt_connection = build_connection_from_firedrake(
-            actx,
-            dgfspace,
-            grp_factory=None,
-            restrict_to_boundary=outer_bdy_id)
 
         # Set defaults for qbx kwargs
         qbx_order = kwargs.get('qbx_order', degree+2)
@@ -175,6 +160,9 @@ def run_method(trial, method, wave_number,
                       }
         # }}}
 
+        from meshmode.array_context import PyOpenCLArrayContext
+        actx = PyOpenCLArrayContext(queue)
+
         ksp, comp_sol = nonlocal_integral_eq(
             mesh, scatterer_bdy_id, outer_bdy_id,
             wave_number,
@@ -185,8 +173,6 @@ def run_method(trial, method, wave_number,
             actx=actx,
             dgfspace=dgfspace,
             dgvfspace=dgvfspace,
-            meshmode_src_connection=meshmode_src_connection,
-            meshmode_tgt_connection=meshmode_tgt_connection,
             qbx_kwargs=qbx_kwargs,
             )
 
