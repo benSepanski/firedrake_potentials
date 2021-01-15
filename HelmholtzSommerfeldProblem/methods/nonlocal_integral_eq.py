@@ -1,7 +1,8 @@
 import numpy as np
 
 from firedrake import Function, FacetNormal, TestFunction, assemble, inner, ds, \
-    TrialFunction, grad, dx, Constant, SpatialCoordinate, VectorFunctionSpace
+    TrialFunction, grad, dx, Constant, SpatialCoordinate, VectorFunctionSpace, \
+    project
 from firedrake.petsc import PETSc, OptionsManager
 
 from pytential.target import PointsTarget
@@ -161,7 +162,7 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             self.v = TestFunction(fspace)
 
             # some meshmode ones
-            self.x_mm_fntn = self.meshmode_src_connection.empty()
+            self.x_mm_fntn = self.meshmode_src_connection.discr.empty(self.actx)
 
             # }}}
 
@@ -182,8 +183,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                                                             u=self.x_mm_fntn_on_bdy,
                                                             k=self.k)
             # Store in firedrake
-            self.potential_int[target_indices] = potential_int_mm[:]
-            self.grad_potential_int[target_indices] = grad_potential_int_mm[:]
+            self.potential_int.dat.data[target_indices] = potential_int_mm[:]
+            self.grad_potential_int.dat.data[target_indices] = grad_potential_int_mm[:]
 
             # Integrate the potential
             r"""
@@ -303,13 +304,17 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     f_convoluted = Function(fspace)
 
     # Transfer to meshmode
-    sigma = meshmode_src_connection.from_firedrake(true_sol_grad)
+    print("transfering rhs")
+    sigma = meshmode_src_connection.from_firedrake(project(true_sol_grad, dgvfspace), actx=actx)
+    sigma = src_bdy_connection(sigma)
     # Apply the operations
+    print("applying pytential rhs")
     f_grad_convoluted_mm = rhs_grad_op(actx, sigma=sigma, k=wave_number)
     f_convoluted_mm = rhs_op(actx, sigma=sigma, k=wave_number)
+    print("pytential rhs applied")
     # Transfer function back to firedrake
-    f_grad_convoluted_mm.dat.data[target_indices] = f_grad_convoluted_mm[:]
-    f_convoluted_mm.dat.data[target_indices] = f_convoluted_mm[:]
+    f_grad_convoluted.dat.data[target_indices] = f_grad_convoluted_mm[:]
+    f_convoluted.dat.data[target_indices] = f_convoluted_mm[:]
 
     r"""
         \langle

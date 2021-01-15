@@ -17,10 +17,6 @@ Next install [meshmode](https://github.com/inducer/meshmode) and
    done
    pip install pyamg
 
-Run :code:`pip list | grep loo`. If you see both :code:`loo.py` and :code:`loopy`,
-run :code:`pip uninstall loopy`. Run :code:`pip list | grep loo` again, and you should
-no longer see :code:`loopy`.
-
 While we wait for a few loopy pulls to go through, we should also grab my branch of loopy
 (right now, meshmode works with a few very small fixes to firedrake's loopy branch).
 .. code-block:: bash
@@ -32,6 +28,17 @@ While we wait for a few loopy pulls to go through, we should also grab my branch
     cd ..
     pip install -e loopy/
 
+Next, we hack master loopy into the firedrake environment as loopyy and make volumential
+(and some other relevant packages) look for loopyy
+(from the master branch) instead of loopy (from firedrake).
+.. code-block:: bash
+    pip install git+https://gitlab.tiker.net/ben_sepanski/loopy.git@loopy_to_loopyy#egg=loo.pyy
+    pip install --upgrade git+https://github.com/benSepanski/pytential.git@loopy_to_loopyy ;
+    pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/boxtree.git@loopy_to_loopyy ;
+
+Run :code:`pip list | grep loo`. If you see both :code:`loo.py` and :code:`loopy`,
+run :code:`pip uninstall loopy`. Run :code:`pip list | grep loo` again, and you should
+no longer see :code:`loopy`.
 
 .. note::
 
