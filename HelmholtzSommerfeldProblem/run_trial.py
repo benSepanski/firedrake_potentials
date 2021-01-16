@@ -9,7 +9,7 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, Mesh, SpatialCoordinate, \
-    plot
+    tricontour, warning
 
 import utils.norm_functions as norms
 from methods import run_method
@@ -52,21 +52,25 @@ method_to_kwargs = {
         'pml_type': 'bdy_integral',
         'options_prefix': 'pml',
         'solver_parameters': {'pc_type': 'lu',
-                              'ksp_type': 'preonly',
+                              'ksp_type': 'preonly'
                               }
     },
     'nonlocal': {
         'queue': queue,
         'options_prefix': 'nonlocal',
-        'solver_parameters': {'pc_type': 'pyamg',
-                              'ksp_type': 'fgmres',
-                              'ksp_max_it': 50,
-                              'pyamg_tol': 1e-50,
-                              'pyamg_maxiter': 3,
-                              'ksp_monitor_true_residual': None,
-                              },
+        'solver_parameters': {'ksp_type': 'gmres'
+                              }
     }
 }
+"""
+'solver_parameters': {'pc_type': 'pyamg',
+                      'ksp_type': 'fgmres',
+                      'ksp_max_it': 50,
+                      'pyamg_tol': 1e-50,
+                      'pyamg_maxiter': 3,
+                      'ksp_monitor_true_residual': None,
+                      },
+"""
 
 # Use cache if have it?
 use_cache = False
@@ -75,7 +79,7 @@ use_cache = False
 write_over_duplicate_trials = True
 
 # min h, max h? Only use meshes with characterstic length in [min_h, max_h]
-min_h = None
+min_h = 0.25
 max_h = None
 if mesh_dim == 3 and (max_h is None or max_h >= 2**-1):
     warn("3D on mesh with characteristic length 0.5 is buggy, try setting"
@@ -395,9 +399,12 @@ for mesh_name, mesh_h in zip(mesh_names, mesh_h_vals):
                         uncached_results[key]['Max Extreme Singular Value'] = emax
 
                     if visualize:
-                        plot(comp_sol)
-                        plot(true_sol)
-                        plt.show()
+                        try:
+                            tricontour(comp_sol)
+                            tricontour(true_sol)
+                            plt.show()
+                        except Exception as e:
+                            warning("Cannot plot figure. Error msg: '%s'" % e)
 
                 else:
                     ndofs = cache[key]['ndofs']

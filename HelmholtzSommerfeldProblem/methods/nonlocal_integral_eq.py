@@ -22,7 +22,7 @@ def get_target_points_and_indices(fspace, boundary_id):
     """
     # Check that bdy id is valid
     if boundary_id not in set(fspace.mesh().exterior_facets.unique_markers):
-        warn("%s is not an exterior facet ids: %s" % boundary_id)
+        warn("%s is not an exterior facet id" % boundary_id)
 
     target_indices = fspace.boundary_nodes(boundary_id, 'topological')
     target_indices = np.array(target_indices, dtype=np.int32)
@@ -162,12 +162,13 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             self.v = TestFunction(fspace)
 
             # some meshmode ones
-            self.x_mm_fntn = self.meshmode_src_connection.discr.empty(self.actx)
+            self.x_mm_fntn = self.meshmode_src_connection.discr.empty(self.actx,
+                                                                      dtype='c')
 
             # }}}
 
         def mult(self, mat, x, y):
-            # Copy function data into the firedrake function
+            # Copy function data into the fivredrake function
             self.x_fntn.dat.data[:] = x[:]
             # Transfer the function to meshmode
             self.meshmode_src_connection.from_firedrake(project(self.x_fntn, dgfspace),
@@ -176,15 +177,16 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             x_mm_fntn_on_bdy = src_bdy_connection(self.x_mm_fntn)
 
             # Apply the operation
-            potential_int_mm_on_bdy = self.pyt_op(self.actx,
-                                                  u=self.x_mm_fntn_on_bdy,
-                                                  k=self.k)
-            grad_potential_int_mm_on_bdy = self.pyt_grad_op(self.actx,
-                                                            u=self.x_mm_fntn_on_bdy,
-                                                            k=self.k)
+            potential_int_mm = self.pyt_op(self.actx,
+                                           u=x_mm_fntn_on_bdy,
+                                           k=self.k)
+            grad_potential_int_mm = self.pyt_grad_op(self.actx,
+                                                     u=x_mm_fntn_on_bdy,
+                                                     k=self.k)
             # Store in firedrake
-            self.potential_int.dat.data[target_indices] = potential_int_mm[:]
-            self.grad_potential_int.dat.data[target_indices] = grad_potential_int_mm[:]
+            self.potential_int.dat.data[target_indices] = potential_int_mm.get()
+            for dim, values in enumerate(grad_potential_int_mm):
+                self.grad_potential_int.dat.data[target_indices, dim] = grad_potential_int_mm[dim].get()
 
             # Integrate the potential
             r"""
@@ -300,21 +302,21 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     rhs_grad_op = bind((qbx, target), grad_op)
     rhs_op = bind((qbx, target), op)
 
-    f_grad_convoluted = Function(vfspace)
-    f_convoluted = Function(fspace)
-
     # Transfer to meshmode
-    print("transfering rhs")
     sigma = meshmode_src_connection.from_firedrake(project(true_sol_grad, dgvfspace), actx=actx)
     sigma = src_bdy_connection(sigma)
     # Apply the operations
-    print("applying pytential rhs")
     f_grad_convoluted_mm = rhs_grad_op(actx, sigma=sigma, k=wave_number)
     f_convoluted_mm = rhs_op(actx, sigma=sigma, k=wave_number)
-    print("pytential rhs applied")
     # Transfer function back to firedrake
-    f_grad_convoluted.dat.data[target_indices] = f_grad_convoluted_mm[:]
-    f_convoluted.dat.data[target_indices] = f_convoluted_mm[:]
+    f_grad_convoluted = Function(vfspace)
+    f_convoluted = Function(fspace)
+    f_grad_convoluted.dat.data[:] = 0.0
+    f_convoluted.dat.data[:] = 0.0
+
+    for dim, values in enumerate(f_grad_convoluted_mm):
+        f_grad_convoluted.dat.data[target_indices, dim] = f_grad_convoluted_mm[dim].get()
+    f_convoluted.dat.data[target_indices] = f_convoluted_mm.get()
 
     r"""
         \langle
@@ -388,6 +390,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     options_manager = OptionsManager(solver_parameters, options_prefix)
     options_manager.set_from_options(ksp)
 
+    import petsc4py.PETSc
+    petsc4py.PETSc.Sys.popErrorHandler()
     with rhs.dat.vec_ro as b:
         with solution.dat.vec as x:
             ksp.solve(b, x)
