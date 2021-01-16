@@ -2,13 +2,13 @@ Installation
 ============
 
 First install complex firedrake.
-.. code-block:: console 
+.. code-block:: 
     curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
     python3 firedrake-install --complex 
 
 Next install [meshmode](https://github.com/inducer/meshmode) and
 [pyamg](https://github.com/pyamg/pyamg).
-.. code-block:: console
+.. code-block::
     source firedrake/bin/activate
     hash -r; for i in modepy pyvisfile boxtree sumpy meshmode pytential ; do
        python -m pip install git+https://github.com/inducer/$i.git; 
@@ -17,7 +17,7 @@ Next install [meshmode](https://github.com/inducer/meshmode) and
 
 While we wait for a few loopy pulls to go through, we should also grab my branch of loopy
 (right now, meshmode works with a few very small fixes to firedrake's loopy branch).
-.. code-block:: console
+.. code-block::
     cd firedrake/src/loopy
     git remote add sepanski_fork https://github.com/benSepanski/loopy.git
     git fetch sepanski_fork firedrake-usable_for_potentials
@@ -29,7 +29,7 @@ While we wait for a few loopy pulls to go through, we should also grab my branch
 Next, we hack master loopy into the firedrake environment as loopyy and make volumential
 (and some other relevant packages) look for loopyy
 (from the master branch) instead of loopy (from firedrake).
-.. code-block:: console
+.. code-block:: 
     pip install git+https://gitlab.tiker.net/ben_sepanski/loopy.git@loopy_to_loopyy#egg=loo.pyy
     pip install --upgrade git+https://github.com/benSepanski/pytential.git@loopy_to_loopyy ;
     pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/boxtree.git@loopy_to_loopyy ;
