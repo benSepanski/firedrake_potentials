@@ -11,11 +11,11 @@ Next install [meshmode](https://github.com/inducer/meshmode) and
 [pyamg](https://github.com/pyamg/pyamg).
 
 .. code-block:: bash
-   source firedrake/bin/activate
-   hash -r; for i in modepy pyvisfile boxtree sumpy meshmode pytential ; do
+    source firedrake/bin/activate
+    hash -r; for i in modepy pyvisfile boxtree sumpy meshmode pytential ; do
        python -m pip install git+https://github.com/inducer/$i.git; 
-   done
-   pip install pyamg
+    done
+    pip install pyamg
 
 While we wait for a few loopy pulls to go through, we should also grab my branch of loopy
 (right now, meshmode works with a few very small fixes to firedrake's loopy branch).
