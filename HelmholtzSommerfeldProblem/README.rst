@@ -2,14 +2,12 @@ Installation
 ============
 
 First install complex firedrake.
-
 .. code-block:: bash
     curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
     python3 firedrake-install --complex 
 
 Next install [meshmode](https://github.com/inducer/meshmode) and
 [pyamg](https://github.com/pyamg/pyamg).
-
 .. code-block:: bash
     source firedrake/bin/activate
     hash -r; for i in modepy pyvisfile boxtree sumpy meshmode pytential ; do
