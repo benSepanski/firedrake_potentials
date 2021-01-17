@@ -8,7 +8,7 @@ Coherence;
 //+
 Physical Line("scatterer") = {11};
 //+
-Physical Line("outer_boundary") = {18, 17, 16, 2, 23, 22, 20, 24, 7, 25, 12, 14};
+Physical Line("outer_bdy") = {18, 13, 14, 8, 25, 24, 20, 22, 23, 2, 16, 15};
 //+
 Physical Surface("inner_region") = {3};
 //+

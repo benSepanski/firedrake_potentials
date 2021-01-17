@@ -9,7 +9,7 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, Mesh, SpatialCoordinate, \
-    tricontour, warning
+    trisurf, warning
 
 import utils.norm_functions as norms
 from methods import run_method
@@ -58,7 +58,8 @@ method_to_kwargs = {
     'nonlocal': {
         'queue': queue,
         'options_prefix': 'nonlocal',
-        'solver_parameters': {'ksp_type': 'gmres'
+        'solver_parameters': {'pc_type' : 'lu',
+                              'ksp_monitor': None,
                               }
     }
 }
@@ -400,8 +401,8 @@ for mesh_name, mesh_h in zip(mesh_names, mesh_h_vals):
 
                     if visualize:
                         try:
-                            tricontour(comp_sol)
-                            tricontour(true_sol)
+                            trisurf(comp_sol)
+                            trisurf(true_sol)
                             plt.show()
                         except Exception as e:
                             warning("Cannot plot figure. Error msg: '%s'" % e)
