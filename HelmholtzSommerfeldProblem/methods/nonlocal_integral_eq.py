@@ -185,7 +185,7 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                                                      k=self.k)
             # Store in firedrake
             self.potential_int.dat.data[target_indices] = potential_int_mm.get()
-            for dim, values in enumerate(grad_potential_int_mm):
+            for dim in range(grad_potential_int_mm.shape[0]):
                 self.grad_potential_int.dat.data[target_indices, dim] = grad_potential_int_mm[dim].get()
 
             # Integrate the potential
@@ -303,18 +303,18 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     rhs_op = bind((qbx, target), op)
 
     # Transfer to meshmode
-    sigma = meshmode_src_connection.from_firedrake(project(true_sol_grad, dgvfspace), actx=actx)
-    sigma = src_bdy_connection(sigma)
+    true_sol_grad_mm = meshmode_src_connection.from_firedrake(project(true_sol_grad, dgvfspace), actx=actx)
+    true_sol_grad_mm = src_bdy_connection(true_sol_grad_mm)
     # Apply the operations
-    f_grad_convoluted_mm = rhs_grad_op(actx, sigma=sigma, k=wave_number)
-    f_convoluted_mm = rhs_op(actx, sigma=sigma, k=wave_number)
+    f_grad_convoluted_mm = rhs_grad_op(actx, sigma=true_sol_grad_mm, k=wave_number)
+    f_convoluted_mm = rhs_op(actx, sigma=true_sol_grad_mm, k=wave_number)
     # Transfer function back to firedrake
     f_grad_convoluted = Function(vfspace)
     f_convoluted = Function(fspace)
     f_grad_convoluted.dat.data[:] = 0.0
     f_convoluted.dat.data[:] = 0.0
 
-    for dim, values in enumerate(f_grad_convoluted_mm):
+    for dim in range(f_grad_convoluted_mm.shape[0]):
         f_grad_convoluted.dat.data[target_indices, dim] = f_grad_convoluted_mm[dim].get()
     f_convoluted.dat.data[target_indices] = f_convoluted_mm.get()
 

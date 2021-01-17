@@ -1,5 +1,0 @@
-h,degree,kappa,method,pc_type,FMM Order,ndofs,2nd Order,L2 Error,H1 Error,Iteration Number,gamma,beta,ksp_type,Residual Norm,Converged Reason,ksp_rtol,ksp_atol,Min Extreme Singular Value,Max Extreme Singular Value,pyamg_maxiter,pyamg_tol
-0.5,1,2.0,transmission,pyamg,,204,False,0.025733320233325373,0.08344820719349813,7,,,gmres,3.918319527449558e-09,CONVERGED_RTOL,1e-07,1e-50,,,5,1e-50
-0.25,1,2.0,transmission,pyamg,,731,False,0.017058565865054276,0.045821779141611944,4,,,gmres,1.027551762756826e-09,CONVERGED_RTOL,1e-07,1e-50,,,5,1e-50
-0.125,1,2.0,transmission,pyamg,,2930,False,0.029552179668101034,0.07405298363135465,5,,,gmres,2.9841164080735544e-07,CONVERGED_RTOL,1e-07,1e-50,,,5,1e-50
-0.0625,1,2.0,transmission,pyamg,,11292,False,0.022275155146517227,0.055379531346205275,4,,,gmres,1.4326343459010262e-08,CONVERGED_RTOL,1e-07,1e-50,,,5,1e-50
