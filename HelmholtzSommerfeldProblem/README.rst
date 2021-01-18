@@ -1,10 +1,10 @@
 Installation
 ============
 
-First install complex firedrake.
+First install complex firedrake with open-cascade bindings
 .. code-block:: 
     curl -O https://raw.githubusercontent.com/firedrakeproject/firedrake/master/scripts/firedrake-install
-    python3 firedrake-install --complex 
+    python3 firedrake-install --complex --opencascade
 
 Next install [meshmode](https://github.com/inducer/meshmode) and
 [pyamg](https://github.com/pyamg/pyamg).
