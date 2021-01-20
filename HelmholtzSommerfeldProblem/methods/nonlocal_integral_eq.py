@@ -83,10 +83,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     pyt_inner_normal_sign = -1
 
     ambient_dim = mesh.geometric_dimension()
-    from firedrake import triplot
-    import matplotlib.pyplot as plt
-    triplot(mesh)
-    plt.show()
 
     # {{{ Build src and tgt 
 
