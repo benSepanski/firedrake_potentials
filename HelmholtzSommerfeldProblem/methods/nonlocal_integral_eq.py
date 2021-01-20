@@ -12,7 +12,7 @@ from sumpy.kernel import HelmholtzKernel
 from .preconditioners.two_D_helmholtz import AMGTransmissionPreconditioner
 
 
-def get_target_points_and_indices(fspace, boundary_id):
+def get_target_points_and_indices(fspace, boundary_ids):
     """
     Get  the points from the function space which lie on the given boundary
     id as a pytential PointsTarget, and their indices into the
@@ -20,13 +20,28 @@ def get_target_points_and_indices(fspace, boundary_id):
 
     :return: (target_indices, target_points)
     """
-    # Check that bdy id is valid
-    if boundary_id not in set(fspace.mesh().exterior_facets.unique_markers):
-        warn("%s is not an exterior facet id" % boundary_id)
+    # if just passed an int, convert to an iterable of ints
+    # so that just one case to deal with
+    if isinstance(boundary_ids, int):
+        boundary_ids = [boundary_ids]
+    target_markers = set(boundary_ids)
 
-    target_indices = fspace.boundary_nodes(boundary_id, 'topological')
+    # Check that bdy ids are valid
+    if not target_markers <= set(fspace.mesh().exterior_facets.unique_markers):
+        raise ValueError(
+            "The following bdy ids are not exterior facet ids: %s" %
+            (target_markers - set(fspace.mesh().exterior_facets.unique_markers)))
+
+    if not target_markers & set(fspace.mesh().exterior_facets.unique_markers):
+        raise ValueError("No bdy ids are exterior facet ids")
+
+    target_indices = set()
+    for marker in target_markers:
+        target_indices |= set(
+            fspace.boundary_nodes(marker, 'topological'))
+    target_indices = np.array(list(target_indices), dtype=np.int32)
+
     target_indices = np.array(target_indices, dtype=np.int32)
-
     # Get coordinates of nodes
     coords = SpatialCoordinate(fspace.mesh())
     function_space_dim = VectorFunctionSpace(
@@ -68,6 +83,10 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     pyt_inner_normal_sign = -1
 
     ambient_dim = mesh.geometric_dimension()
+    from firedrake import triplot
+    import matplotlib.pyplot as plt
+    triplot(mesh)
+    plt.show()
 
     # {{{ Build src and tgt 
 
