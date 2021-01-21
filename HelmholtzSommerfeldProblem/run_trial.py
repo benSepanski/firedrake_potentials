@@ -35,7 +35,7 @@ num_refinements = 4
 
 kappa_list = [1.0]
 degree_list = [1]
-method_list = ['nonlocal']
+method_list = ['nonlocal', 'pml']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -230,19 +230,10 @@ logging.info("Building Mesh Hierarchy...")
 from firedrake import OpenCascadeMeshHierarchy
 mesh_hierarchy = OpenCascadeMeshHierarchy('meshes/' + mesh_file_name,
                                           element_size,
-                                          num_refinements)
+                                          num_refinements,
+                                          order=2)
 
-from firedrake import triplot, FunctionSpace, CellSize, Function
-import matplotlib.pyplot as plt
-cell_sizes = []
-for mesh in mesh_hierarchy.meshes:
-    P1 = FunctionSpace(mesh, 'CG', 1)
-    cell_size = Function(P1).interpolate(CellSize(mesh))
-    max_cell_size = np.max(cell_size.dat.data)
-    cell_sizes.append(max_cell_size)
-    triplot(mesh)
-#plt.show()
-
+cell_sizes = [element_size * 2**-i for i in range(num_refinements)]
 mesh_names = [mesh_file_name[:mesh_file_name.find('.')] + str(cell_size) for cell_size in cell_sizes]
 
 logging.info("Mesh Hierarchy prepared.")
