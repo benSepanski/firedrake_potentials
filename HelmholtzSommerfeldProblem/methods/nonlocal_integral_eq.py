@@ -78,6 +78,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         \Delta u - \kappa^2 \gamma u = 0
         (\partial_n - i\kappa\beta) u |_\Sigma = 0
     """
+    # make sure we get outer bdy id as tuple in case it consists of multiple ids
+    outer_bdy_id = tuple(outer_bdy_id)
     # away from the excluded region, but firedrake and meshmode point
     # into
     pyt_inner_normal_sign = -1
@@ -225,9 +227,9 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                 \rangle_\Sigma
             """
             self.pyt_result = assemble(
-                inner(inner(self.grad_potential_int, self.n),
-                      self.v) * ds(outer_bdy_id)
-                - inner(self.potential_int, self.v) * ds(outer_bdy_id)
+                    inner(inner(self.grad_potential_int, self.n),
+                          self.v) * ds(outer_bdy_id)
+                    - inner(self.potential_int, self.v) * ds(outer_bdy_id)
             )
 
             # y <- Ax - evaluated potential

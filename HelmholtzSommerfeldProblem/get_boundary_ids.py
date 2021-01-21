@@ -1,20 +1,13 @@
 from firedrake import *
 import matplotlib.pyplot as plt
 
-m = Mesh("meshes/coarse-circle_in_square.msh")
+m = Mesh("meshes/coarse-circle_in_square-rad1.0-side6.0.msh")
 m.init()
 
 for marker in m.exterior_facets.unique_markers:
     V = FunctionSpace(m, "CG", 1)
-
-    u = TrialFunction(V)
-    v = TestFunction(V)
-
-    a = inner(u, v) * dx
-    L = inner(Constant(0.0), v) * dx
-    sol = Function(V)
-    solve(a == L, sol, bcs=[DirichletBC(V, 1.0, marker)])
-
-    trisurf(sol)
+    f = Function(V).interpolate(Constant(0.0))
+    DirichletBC(V, 1.0, marker).apply(f)
+    trisurf(f)
     plt.title(str(marker))
 plt.show()

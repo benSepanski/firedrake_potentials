@@ -9,8 +9,7 @@ from .transmission import transmission
 
 trial_options = set(['mesh', 'degree', 'true_sol_expr'])
 
-method_required_options = {'pml': set(['inner_region',
-                                       'pml_min',
+method_required_options = {'pml': set(['pml_min',
                                        'pml_max',
                                        ]),
                            'nonlocal': set(['queue']),
@@ -103,7 +102,6 @@ def run_method(trial, method, wave_number,
     # Handle any special kwargs and get computed solution
     if method == 'pml':
         # Get required objects
-        inner_region = kwargs['inner_region']
         pml_max = kwargs['pml_max']
         pml_min = kwargs['pml_min']
 
@@ -123,7 +121,6 @@ def run_method(trial, method, wave_number,
         snes, comp_sol = pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                              options_prefix=options_prefix,
                              solver_parameters=solver_parameters,
-                             inner_region=inner_region,
                              fspace=fspace, tfspace=tfspace,
                              true_sol_grad=true_sol_grad,
                              pml_type=pml_type, delta=delta, quad_const=quad_const,

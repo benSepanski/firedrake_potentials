@@ -7,14 +7,12 @@ from firedrake import Constant, SpatialCoordinate, as_tensor, \
 
 def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         options_prefix=None, solver_parameters=None,
-        inner_region=None,
         fspace=None, tfspace=None, true_sol_grad=None,
         pml_type=None, delta=None, quad_const=None, speed=None,
         pml_min=None, pml_max=None):
     """
         For unlisted arg descriptions, see run_method
 
-        :arg inner_region: boundary id of non-pml region
         :arg pml_type: Type of pml function, either 'quadratic' or 'bdy_integral'
         :arg delta: For :arg:`pml_type` of 'bdy_integral', added to denominator
                     to prevent 1 / 0 at edge of boundary
