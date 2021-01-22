@@ -5,6 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyopencl as cl
 
+from os.path import isfile, join
+
 cl_ctx = cl.create_some_context()
 queue = cl.CommandQueue(cl_ctx)
 
@@ -34,11 +36,30 @@ logger.setLevel(level=logging.INFO)
 
 # {{{ Trial settings for user to modify
 
-# Only need base filename: looks in the meshes/ folder
-# One of: 'circle_in_square', 'ball_in_cube', 'annulus', 'betterplane'
-mesh_name = "circle_in_square-rad1.0-side6.0.step"  # pylint: disable=C0103
-element_size = 0.5  # pylint: disable=C0103
-num_refinements = 4  # pylint: disable=C0103
+mesh_options = {
+    # Must be one of the keys of mesh_options['mesh_options']
+    'mesh_name': 'circle_in_square',
+    # clmax of coarsest mesh
+    'element_size': 0.5,
+    # number of refinements
+    'num_refinements': 4,
+    # mesh-specific options
+    'mesh_options': {
+        'circle_in_square': {
+            'radius': 1.0,
+            'cutoff_size': 1.0,
+        },
+        'ball_in_cube': {
+            'radius': 1.0,
+            'cutoff_size': 1.0,
+        },
+        'annulus': {
+            'inner_radius': 1.0,
+            'outer_radius': 2.0,
+        },
+        'betterplane': {},
+    },
+}
 
 kappa_list = [1.0]
 degree_list = [1]
@@ -118,6 +139,18 @@ def get_fmm_order(kappa, h):
 # }}}
 
 
+# Extract mesh options
+mesh_name = mesh_options['mesh_name']  # pylint: disable=C0103
+element_size = mesh_options['element_size']  # pylint: disable=C0103
+num_refinements = mesh_options['num_refinements']  # pylint: disable=C0103
+try:
+    mesh_options = mesh_options['mesh_options'][mesh_name]
+except KeyError:
+    raise KeyError("Unrecognized mesh name {mesh_name}. "
+                   "Mesh name must be one of {meshes}".format(
+                       mesh_name=mesh_name,
+                       meshes=mesh_options['mesh_options'].keys()))
+
 # Open cache file to get any previously computed results
 logger.info("Reading cache...")
 cache_file_name = "data/" + mesh_name[:mesh_name.find('.')] + '.csv'
@@ -162,15 +195,22 @@ if mesh_name in ['annulus', 'circle_in_square']:
     if mesh_name == 'circle_in_square':
         inner_bdy_id = 5  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4]
-    elif mesh_name == 'annulus.step':
-        raise ValueError("TODO: FIGURE OUT ANNULUS BOUNDARY IDS")
-
-    pml_min = [2, 2]
-    pml_max = [3, 3]
-
-    if mesh_name == 'annulus':
+        pml_min = [2, 2]
+        pml_max = [2 + mesh_options['cutoff_size'] for _ in range(2)]
+        mesh_file_name = "circle_in_square-rad{rad}-side{side}.step".format(
+            rad=mesh_options['radius'],
+            side=2 * (2 + mesh_options['cutoff_size']))
+    elif mesh_name == 'annulus':
+        inner_bdy_id = 2  # pylint: disable=C0103
+        outer_bdy_id = 1  # pylint: disable=C0103
         if 'pml' in method_list:
             raise ValueError('pml not supported on annulus mesh')
+        pml_min = None  # pylint: disable=C0103
+        pml_max = None  # pylint: disable=C0103
+        mesh_file_name = \
+            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.step"\
+            .format(inner_rad=mesh_options['inner_radius'],
+                    outer_rad=mesh_options['outer_radius'])
 
 elif mesh_name in ['ball_in_cube', 'betterplane']:
     mesh_dim = 3  # pylint: disable=C0103
@@ -180,16 +220,29 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         inner_bdy_id = 7  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]
         pml_min = [2, 2, 2]
-        pml_max = [3, 3, 3]
+        pml_max = [2 + mesh_options['cutoff_size'] for _ in range(3)]
+        mesh_file_name = "ball_in_cube-rad{rad}-side{side}.step".format(
+            rad=mesh_options['radius'],
+            side=2 * (2 + mesh_options['cutoff_size']))
 
     elif mesh_name == 'betterplane':
-        inner_bdy_id = 2  # pylint: disable=C0103
-        outer_bdy_id = 1  # pylint: disable=C0103
+        inner_bdy_id = list(range(7, 32))  # pylint: disable=C0103
+        outer_bdy_id = [1, 2, 3, 4, 5, 6]  # pylint: disable=C0103
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
+        mesh_file_name = "betterplane.step"
+        raise NotImplementedError("betterplane requires a source layer"
+                                  " involving multiple boundary tags. "
+                                  " Not yet implemented")
 
 else:
-    raise ValueError("Unrecognized mesh file name '%s'." % mesh_name)
+    raise ValueError("Unrecognized mesh name '%s'." % mesh_name)
+
+if not isfile(join('meshes', mesh_file_name)):
+    raise ValueError(
+        "{mesh_file} not found. Modify bin/make_meshes to "
+        "generate appropriate mesh, or modify mesh options."
+        .format(mesh_file=join('meshes', mesh_file_name)))
 
 
 def get_true_sol_expr(spatial_coord):
@@ -237,11 +290,10 @@ for mkey in method_to_kwargs:
         if gkey not in method_to_kwargs[mkey]:
             method_to_kwargs[mkey][gkey] = global_kwargs[gkey]
 
-
 from firedrake import OpenCascadeMeshHierarchy
 order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
 logger.info("Building Mesh Hierarchy (mesh order %s)...", order)
-mesh_hierarchy = OpenCascadeMeshHierarchy('meshes/' + mesh_name,
+mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
                                           element_size,
                                           num_refinements,
                                           order=order)
@@ -274,7 +326,8 @@ iteration = 0  # pylint: disable=C0103
 total_iter = len(mesh_names) * len(degree_list) * \
              len(kappa_list) * len(method_list)
 
-field_names = ('h', 'degree', 'kappa', 'method',
+field_names = ('Mesh Order', 'Cutoff Size',
+               'h', 'degree', 'kappa', 'method',
                'pc_type', 'pc_side', 'FMM Order', 'ndofs',
                'L2 Error', 'H1 Error', 'Iteration Number',
                'gamma', 'beta', 'ksp_type',
@@ -282,7 +335,10 @@ field_names = ('h', 'degree', 'kappa', 'method',
                'Min Extreme Singular Value', 'Max Extreme Singular Value',
                'pyamg_maxiter', 'pyamg_tol')
 
-setup_info = {}
+setup_info = {'Mesh Order': str(order)}
+if mesh_name in ['circle_in_square', 'ball_in_cube']:
+    setup_info['Cutoff Size'] = mesh_options['cutoff_size']
+
 for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes,
                                       mesh_names,
                                       cell_sizes):
