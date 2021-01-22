@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys
 
-from os.path import join, splitext, abspath, dirname, isfile
+from os.path import join, splitext, abspath, dirname, isfile, isdir
 from subprocess import call
 
 
@@ -51,8 +51,6 @@ BooleanDifference(3) = {{Volume{{1}}; Delete;}}{{Volume{{2}}; Delete;}};
     make_geo_and_step(geo_code, file_dir, base_file_name)
 
 
-
-
 def make_circle_in_square(radius,
                           side_length,
                           file_dir):
@@ -68,7 +66,7 @@ Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
 //+
 Disk(2) = {{0, 0, 0, {rad}, {rad}}};
 //+
-BooleanDifference(4) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
+BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -79,9 +77,79 @@ BooleanDifference(4) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
     make_geo_and_step(geo_code, file_dir, base_file_name)
 
 
+def make_annulus(inner_radius, outer_radius, file_dir):
+    """
+    Make an annulus
+    as a .geo file and .step file in file-dir saved as
+
+    file_dir/annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.geo/step
+    """
+    geo_code = """SetFactory("OpenCASCADE");
+//+
+Disk(1) = {{0, 0, 0, {outer_rad}, {outer_rad}}};
+//+
+Disk(2) = {{0, 0, 0, {inner_rad}, {inner_rad}}};
+//+
+BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
+""".format(inner_rad=inner_radius, outer_rad=outer_radius)
+    base_file_name = \
+        "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}".format(
+            inner_rad=inner_radius, outer_rad=outer_radius)
+
+    make_geo_and_step(geo_code, file_dir, base_file_name)
+
+
+def make_betterplane(file_dir):
+    """
+    Make betterplane
+    as a .geo file and .step file in file-dir saved as
+
+    file_dir/betterplane.geo/step
+    """
+    brep_dir = join(abspath(dirname(__file__)),
+                    "..", "HelmholtzSommerfeldProblem", "meshes", "brep_files")
+    betterplane_brep_file_name = join(brep_dir, "betterplane.brep")
+    if not isfile(betterplane_brep_file_name):
+        try:
+            if not isdir(brep_dir):
+                call(['mkdir', brep_dir])
+        except Exception as e:
+            print("Failed to make directory %s" % brep_dir)
+            raise e
+        command = ['curl', '-o', betterplane_brep_file_name,
+                   'https://raw.githubusercontent.com/inducer/geometries/master/surface-3d/betterplane.brep']
+        try:
+            call(command)
+        except Exception as e:
+            print("Failed to download betterplane.brep from https://raw.githubusercontent.com/inducer/geometries/master/surface-3d/betterplane.brep")
+            raise e
+    geo_code = """SetFactory("OpenCASCADE");
+//+
+v() = ShapeFromFile("%s");
+Box(2) = {-11, -3.7, -6, 22, 9.2, 20.67};
+BooleanDifference{Volume{2}; Delete;}{Volume{v()}; Delete;}
+""" % betterplane_brep_file_name
+    base_file_name = "betterplane"
+    make_geo_and_step(geo_code, file_dir, base_file_name)
+
+
 # Build meshes
 if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
-    make_circle_in_square(1.0, 6.0, mesh_dir)
+    # ball in cube
     make_ball_in_cube(1.0, 6.0, mesh_dir)
+    make_ball_in_cube(1.0, 5.5, mesh_dir)
+    make_ball_in_cube(1.0, 5.0, mesh_dir)
+    make_ball_in_cube(1.0, 4.5, mesh_dir)
+    make_ball_in_cube(1.0, 4.2, mesh_dir)
+    # circle in square
+    make_circle_in_square(1.0, 6.0, mesh_dir)
+    make_circle_in_square(1.0, 5.5, mesh_dir)
+    make_circle_in_square(1.0, 5.0, mesh_dir)
+    make_circle_in_square(1.0, 4.5, mesh_dir)
+    make_circle_in_square(1.0, 4.2, mesh_dir)
+    # annulus
+    make_annulus(1.0, 2.0, mesh_dir)
+    # betterplane
+    make_betterplane(mesh_dir)

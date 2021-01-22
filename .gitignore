@@ -1,3 +1,8 @@
 *.msh
 *.options
 *.csv
+*.geo
+*.step
+*.brep
+*.hdf5
+**/__pycache__/
