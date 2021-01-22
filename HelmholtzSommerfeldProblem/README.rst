@@ -40,8 +40,6 @@ no longer see :code:`loopy`.
 .. note::
 
     The following is instructions for run_trial.py.
-    Most of it also pertains to multiprocessing_run_trial.py,
-    except for a few noted exceptions.
 
 Specifying Trials to Run
 ========================
@@ -133,12 +131,3 @@ Other Options
   accuracy of :math:`||\text{err}||_\infty \leq c^(p+1)`,
   where :math:`c` is 0.5 in 2d and 0.75 in 3d, and :math:`p` is
   the fmm order.
-
-Multiprocessing Options
------------------------
-
-In :code:`multiprocessing_run_trials.py` the trials are run in parallel.
-You now have the options
-
-* :code:`num_processes`
-* :code:`print_trials` (print trial results as computed)
