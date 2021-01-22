@@ -1,7 +1,7 @@
-from warnings import warn
 import os
-import numpy as np
+import logging
 import csv
+import numpy as np
 import matplotlib.pyplot as plt
 import pyopencl as cl
 
@@ -9,7 +9,7 @@ cl_ctx = cl.create_some_context()
 queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
-from firedrake import sqrt, Constant, pi, exp, Mesh, SpatialCoordinate, \
+from firedrake import sqrt, Constant, pi, exp, SpatialCoordinate, \
     trisurf, warning, product, real, conditional
 
 import utils.norm_functions as norms
@@ -22,14 +22,11 @@ from utils.hankel_function import hankel_function
 import faulthandler
 faulthandler.enable()
 
-import logging
 logger = logging.getLogger("HelmholtzTrial")
-#logging.basicConfig()
 handler = logging.StreamHandler()
 # format string from pytential/pytential/log.py
 c_format = logging.Formatter(
-    "[%(name)s][%(levelname)s]  %(message)s " +
-    "(%(filename)s:%(lineno)d)"
+    "[%(name)s][%(levelname)s]  %(message)s (%(filename)s:%(lineno)d)"
     )
 handler.setFormatter(c_format)
 logger.addHandler(handler)
@@ -38,10 +35,10 @@ logger.setLevel(level=logging.INFO)
 # {{{ Trial settings for user to modify
 
 # Only need base filename: looks in the meshes/ folder
-#mesh_file_name = "circle_in_square-rad1.0-side6.0.step"
-mesh_file_name = "ball_in_cube-rad1.0-side6.0.step"
-element_size = 0.5
-num_refinements = 4
+# One of: 'circle_in_square', 'ball_in_cube', 'annulus', 'betterplane'
+mesh_name = "circle_in_square-rad1.0-side6.0.step"  # pylint: disable=C0103
+element_size = 0.5  # pylint: disable=C0103
+num_refinements = 4  # pylint: disable=C0103
 
 kappa_list = [1.0]
 degree_list = [1]
@@ -74,7 +71,7 @@ method_to_kwargs = {
     'nonlocal': {
         'queue': queue,
         'options_prefix': 'nonlocal',
-        'solver_parameters': {'pc_type' : 'lu',
+        'solver_parameters': {'pc_type': 'lu',
                               'ksp_monitor': None,
                               }
     }
@@ -90,15 +87,15 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = False
+use_cache = False  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = True
+write_over_duplicate_trials = True  # pylint: disable=C0103
 
 # Num refinements?
 
 # Visualize solutions?
-visualize = False
+visualize = False  # pylint: disable=C0103
 
 
 def get_fmm_order(kappa, h):
@@ -111,10 +108,11 @@ def get_fmm_order(kappa, h):
     from math import log
     # FMM order to get tol accuracy
     tol = 1e-4
+    global c
     if mesh_dim == 2:
-        c = 0.5
+        c = 0.5  # pylint: disable=C0103
     elif mesh_dim == 3:
-        c = 0.75
+        c = 0.75  # pylint: disable=C0103
     return int(log(tol, c)) - 1
 
 # }}}
@@ -122,7 +120,7 @@ def get_fmm_order(kappa, h):
 
 # Open cache file to get any previously computed results
 logger.info("Reading cache...")
-cache_file_name = "data/" + mesh_file_name[:mesh_file_name.find('.')] + '.csv'
+cache_file_name = "data/" + mesh_name[:mesh_name.find('.')] + '.csv'
 try:
     in_file = open(cache_file_name)
     cache_reader = csv.DictReader(in_file)
@@ -136,7 +134,8 @@ try:
         output = {}
         input_ = dict(entry)
         for output_name in ['L2 Error', 'H1 Error', 'ndofs',
-                            'Iteration Number', 'Residual Norm', 'Converged Reason',
+                            'Iteration Number', 'Residual Norm',
+                            'Converged Reason',
                             'Min Extreme Singular Value',
                             'Max Extreme Singular Value']:
             output[output_name] = entry[output_name]
@@ -155,52 +154,55 @@ if write_over_duplicate_trials:
     uncached_results = cache
 
 # Hankel approximation cutoff
-mesh_dim = None
-if mesh_file_name in ['annulus.step', 'circle_in_square-rad1.0-side6.0.step']:
-    mesh_dim = 2
-    hankel_cutoff = 80
+mesh_dim = None  # pylint: disable=C0103
+if mesh_name in ['annulus', 'circle_in_square']:
+    mesh_dim = 2  # pylint: disable=C0103
+    hankel_cutoff = 80  # pylint: disable=C0103
 
-    if mesh_file_name == 'circle_in_square-rad1.0-side6.0.step':
-        inner_bdy_id = 5
+    if mesh_name == 'circle_in_square':
+        inner_bdy_id = 5  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4]
-    elif mesh_file_name == 'annulus.step':
+    elif mesh_name == 'annulus.step':
         raise ValueError("TODO: FIGURE OUT ANNULUS BOUNDARY IDS")
 
     pml_min = [2, 2]
     pml_max = [3, 3]
 
-    if mesh_file_name == 'annulus.step':
+    if mesh_name == 'annulus':
         if 'pml' in method_list:
             raise ValueError('pml not supported on annulus mesh')
 
-elif mesh_file_name in ['ball_in_cube-rad1.0-side6.0.step', 'betterplane_pml.step']:
-    mesh_dim = 3
-    hankel_cutoff = 50
+elif mesh_name in ['ball_in_cube', 'betterplane']:
+    mesh_dim = 3  # pylint: disable=C0103
+    hankel_cutoff = 50  # pylint: disable=C0103
 
-    if mesh_file_name == 'ball_in_cube-rad1.0-side6.0.step':
-        inner_bdy_id = 7
+    if mesh_name == 'ball_in_cube':
+        inner_bdy_id = 7  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]
         pml_min = [2, 2, 2]
         pml_max = [3, 3, 3]
 
-    elif mesh_file_name == 'betterplane_pml.step':
-        inner_bdy_id = 2
-        outer_bdy_id = 1
+    elif mesh_name == 'betterplane':
+        inner_bdy_id = 2  # pylint: disable=C0103
+        outer_bdy_id = 1  # pylint: disable=C0103
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
 
 else:
-    raise ValueError("Unrecognized mesh file name '%s'." % mesh_file_name)
+    raise ValueError("Unrecognized mesh file name '%s'." % mesh_name)
 
 
 def get_true_sol_expr(spatial_coord):
+    """
+    Get the ufl expression for the true solution
+    """
     if mesh_dim == 3:
-        x, y, z = spatial_coord
+        x, y, z = spatial_coord  # pylint: disable=C0103
         norm = sqrt(x**2 + y**2 + z**2)
         return Constant(1j / (4*pi)) / norm * exp(1j * kappa * norm)
 
-    elif mesh_dim == 2:
-        x, y = spatial_coord
+    if mesh_dim == 2:
+        x, y = spatial_coord  # pylint: disable=C0103
         return Constant(1j / 4) * hankel_function(kappa * sqrt(x**2 + y**2),
                                                   n=hankel_cutoff)
     raise ValueError("Only meshes of dimension 2, 3 supported")
@@ -237,15 +239,16 @@ for mkey in method_to_kwargs:
 
 
 from firedrake import OpenCascadeMeshHierarchy
-order = 2 if np.any(np.array(degree_list) > 1) else 1
-logger.info("Building Mesh Hierarchy (mesh order %s)..." % order)
-mesh_hierarchy = OpenCascadeMeshHierarchy('meshes/' + mesh_file_name,
+order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
+logger.info("Building Mesh Hierarchy (mesh order %s)...", order)
+mesh_hierarchy = OpenCascadeMeshHierarchy('meshes/' + mesh_name,
                                           element_size,
                                           num_refinements,
                                           order=order)
 
 cell_sizes = [element_size * 2**-i for i in range(num_refinements)]
-mesh_names = [mesh_file_name[:mesh_file_name.find('.')] + str(cell_size) for cell_size in cell_sizes]
+mesh_names = [mesh_name[:mesh_name.find('.')] + str(cell_size)
+              for cell_size in cell_sizes]
 
 logger.info("Mesh Hierarchy prepared.")
 
@@ -267,8 +270,9 @@ for method in method_list:
 # Store error and functions
 results = {}
 
-iteration = 0
-total_iter = len(mesh_names) * len(degree_list) * len(kappa_list) * len(method_list)
+iteration = 0  # pylint: disable=C0103
+total_iter = len(mesh_names) * len(degree_list) * \
+             len(kappa_list) * len(method_list)
 
 field_names = ('h', 'degree', 'kappa', 'method',
                'pc_type', 'pc_side', 'FMM Order', 'ndofs',
@@ -279,7 +283,9 @@ field_names = ('h', 'degree', 'kappa', 'method',
                'pyamg_maxiter', 'pyamg_tol')
 
 setup_info = {}
-for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_sizes):
+for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes,
+                                      mesh_names,
+                                      cell_sizes):
     setup_info['h'] = str(cell_size)
 
     for degree in degree_list:
@@ -290,7 +296,7 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                 setup_info['kappa'] = str(float(kappa))
             else:
                 setup_info['kappa'] = str(kappa)
-            true_sol_expr = None
+            true_sol_expr = None  # pylint: disable=C0103
 
             trial = {'mesh': mesh,
                      'degree': degree,
@@ -317,28 +323,36 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                 else:
                     setup_info['FMM Order'] = ''
 
-                # Add gamma/beta & pyamg info to setup_info if there, else make sure
-                # it's recorded as absent in special_key
+                # Add gamma/beta & pyamg info to setup_info if there, else make
+                # sure it's recorded as absent in special_key
                 if solver_params['pc_type'] != 'pyamg':
                     solver_params.pop('pyamg_maxiter', None)
                     solver_params.pop('pyamg_tol', None)
-                for special_key in ['gamma', 'beta', 'pyamg_maxiter', 'pyamg_tol']:
+                for special_key in ['gamma',
+                                    'beta',
+                                    'pyamg_maxiter',
+                                    'pyamg_tol']:
                     if special_key in solver_params:
-                        if special_key == 'pyamg_tol':  # Make sure gets converted from float
-                            setup_info[special_key] = float(solver_params[special_key])
-                        setup_info[special_key] = str(solver_params[special_key])
+                        # Make sure gets converted from float
+                        if special_key == 'pyamg_tol':
+                            setup_info[special_key] = \
+                                float(solver_params[special_key])
+                        setup_info[special_key] = \
+                            str(solver_params[special_key])
                     else:
                         setup_info[special_key] = ''
 
                     # Overwrite other options if used with options prefix
-                    options_prefix = method_to_kwargs[method].get('options_prefix', None)
+                    options_prefix = \
+                        method_to_kwargs[method].get('options_prefix', None)
                     if options_prefix:
                         if options_prefix[-1] != '_':
                             options_prefix += '_'
                         new_special_key = options_prefix + special_key
                         # FIXME: CHECK FROM COMMAND LINE
                         if new_special_key in solver_params:
-                            setup_info[special_key] = str(solver_params[new_special_key])
+                            setup_info[special_key] = \
+                                str(solver_params[new_special_key])
 
                 # Gets computed solution, prints and caches
                 key = frozenset(setup_info.items())
@@ -346,7 +360,8 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                 if not use_cache or key not in cache:
                     # {{{  Compute true solution expression if haven't already
                     if true_sol_expr is None:
-                        true_sol_expr = get_true_sol_expr(SpatialCoordinate(mesh))
+                        true_sol_expr = \
+                            get_true_sol_expr(SpatialCoordinate(mesh))
                         trial['true_sol_expr'] = true_sol_expr
                     # }}}
 
@@ -360,8 +375,8 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                     elif isinstance(snes_or_ksp, PETSc.KSP):
                         ksp = snes_or_ksp
                     else:
-                        raise ValueError("snes_or_ksp must be of type PETSc.SNES or"
-                                         " PETSc.KSP")
+                        raise ValueError("snes_or_ksp must be of type"
+                                         "PETSc.SNES or PETSc.KSP")
 
                     uncached_results[key] = {}
 
@@ -399,8 +414,10 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                     if solver_params['ksp_type'] == 'gmres' and \
                             compute_sing_val_params & solver_params.keys():
                         emax, emin = ksp.computeExtremeSingularValues()
-                        uncached_results[key]['Min Extreme Singular Value'] = emin
-                        uncached_results[key]['Max Extreme Singular Value'] = emax
+                        uncached_results[key]['Min Extreme Singular Value'] = \
+                            emin
+                        uncached_results[key]['Max Extreme Singular Value'] = \
+                            emax
 
                     if visualize:
                         try:
@@ -408,7 +425,7 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                             trisurf(true_sol)
                             plt.show()
                         except Exception as e:
-                            warning("Cannot plot figure. Error msg: '%s'" % e)
+                            warning("Cannot plot figure. Error msg: '%s'", e)
 
                 else:
                     ndofs = cache[key]['ndofs']
@@ -424,9 +441,9 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
                 print('degree:', degree)
                 if setup_info['method'] == 'nonlocal':
                     if mesh_dim == 2:
-                        c = 0.5
+                        c = 0.5  # pylint: disable=C0103
                     else:
-                        c = 0.75
+                        c = 0.75  # pylint: disable=C0103
                     print('Epsilon= %.2f^(%d+1) = %e'
                           % (c, fmm_order, c**(fmm_order+1)))
 
@@ -438,7 +455,7 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
         if uncached_results:
             logger.info("Writing to cache...")
 
-            write_header = False
+            write_header = False  # pylint: disable=C0103
             if write_over_duplicate_trials:
                 out_file = open(cache_file_name, 'w')
                 write_header = True
