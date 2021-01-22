@@ -23,13 +23,23 @@ import faulthandler
 faulthandler.enable()
 
 import logging
-logger = logging.getLogger("RunHelmholtzTrial")
-logger.setLevel("INFO")
+logger = logging.getLogger("HelmholtzTrial")
+#logging.basicConfig()
+handler = logging.StreamHandler()
+# format string from pytential/pytential/log.py
+c_format = logging.Formatter(
+    "[%(name)s][%(levelname)s]  %(message)s " +
+    "(%(filename)s:%(lineno)d)"
+    )
+handler.setFormatter(c_format)
+logger.addHandler(handler)
+logger.setLevel(level=logging.INFO)
 
 # {{{ Trial settings for user to modify
 
 # Only need base filename: looks in the meshes/ folder
-mesh_file_name = "circle_in_square-rad1.0-side6.0.step"
+#mesh_file_name = "circle_in_square-rad1.0-side6.0.step"
+mesh_file_name = "ball_in_cube-rad1.0-side6.0.step"
 element_size = 0.5
 num_refinements = 4
 
@@ -111,7 +121,7 @@ def get_fmm_order(kappa, h):
 
 
 # Open cache file to get any previously computed results
-logging.info("Reading cache...")
+logger.info("Reading cache...")
 cache_file_name = "data/" + mesh_file_name[:mesh_file_name.find('.')] + '.csv'
 try:
     in_file = open(cache_file_name)
@@ -137,7 +147,7 @@ try:
     in_file.close()
 except (OSError, IOError):
     cache = {}
-logging.info("Cache read in")
+logger.info("Cache read in")
 
 uncached_results = {}
 
@@ -163,13 +173,13 @@ if mesh_file_name in ['annulus.step', 'circle_in_square-rad1.0-side6.0.step']:
         if 'pml' in method_list:
             raise ValueError('pml not supported on annulus mesh')
 
-elif mesh_file_name in ['ball_in_cube.step', 'betterplane_pml.step']:
+elif mesh_file_name in ['ball_in_cube-rad1.0-side6.0.step', 'betterplane_pml.step']:
     mesh_dim = 3
     hankel_cutoff = 50
 
-    if mesh_file_name == 'ball_in_cube.step':
-        inner_bdy_id = 1
-        outer_bdy_id = 3
+    if mesh_file_name == 'ball_in_cube-rad1.0-side6.0.step':
+        inner_bdy_id = 7
+        outer_bdy_id = [1, 2, 3, 4, 5, 6]
         pml_min = [2, 2, 2]
         pml_max = [3, 3, 3]
 
@@ -226,17 +236,18 @@ for mkey in method_to_kwargs:
             method_to_kwargs[mkey][gkey] = global_kwargs[gkey]
 
 
-logging.info("Building Mesh Hierarchy...")
 from firedrake import OpenCascadeMeshHierarchy
+order = 2 if np.any(np.array(degree_list) > 1) else 1
+logger.info("Building Mesh Hierarchy (mesh order %s)..." % order)
 mesh_hierarchy = OpenCascadeMeshHierarchy('meshes/' + mesh_file_name,
                                           element_size,
                                           num_refinements,
-                                          order=2)
+                                          order=order)
 
 cell_sizes = [element_size * 2**-i for i in range(num_refinements)]
 mesh_names = [mesh_file_name[:mesh_file_name.find('.')] + str(cell_size) for cell_size in cell_sizes]
 
-logging.info("Mesh Hierarchy prepared.")
+logger.info("Mesh Hierarchy prepared.")
 
 # {{{ Get setup options for each method
 for method in method_list:
@@ -425,7 +436,7 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
 
         # write to cache if necessary (after gone through kappas)
         if uncached_results:
-            logging.info("Writing to cache...")
+            logger.info("Writing to cache...")
 
             write_header = False
             if write_over_duplicate_trials:
@@ -474,4 +485,4 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes, mesh_names, cell_si
 
             out_file.close()
 
-            logging.info("cache closed")
+            logger.info("cache closed")

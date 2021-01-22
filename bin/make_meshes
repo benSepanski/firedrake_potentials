@@ -25,6 +25,34 @@ def make_geo_and_step(geo_code, file_dir, base_file_name):
     save_geo_as_step(geo_file_name, step_file_name)
 
 
+def make_ball_in_cube(radius,
+                      side_length,
+                      file_dir):
+    """
+    Make a ball inside a cube
+    as a .geo file and .step file in file-dir saved as
+
+    file_dir/ball_in_cube-rad{rad}-side{side}.geo/step
+    """
+    geo_code = """SetFactory("OpenCASCADE");
+//+
+Box(1) = {{-{half_side}, -{half_side}, -{half_side}, {side}, {side}, {side}}};
+//+
+Sphere(2) = {{0, 0, 0, {rad}}};
+//+
+BooleanDifference(3) = {{Volume{{1}}; Delete;}}{{Volume{{2}}; Delete;}};
+""".format(rad=radius,
+           half_side=side_length / 2,
+           side=side_length)
+    base_file_name = \
+        "ball_in_cube-rad{rad}-side{side}".format(
+            rad=radius, side=side_length)
+
+    make_geo_and_step(geo_code, file_dir, base_file_name)
+
+
+
+
 def make_circle_in_square(radius,
                           side_length,
                           file_dir):
@@ -34,24 +62,16 @@ def make_circle_in_square(radius,
 
     file_dir/circle_in_square-rad{rad}-side{side}.geo/step
     """
-    geo_code = """//+ Circle at origin
-SetFactory("OpenCASCADE");
-Circle(1) = {{0, 0, 0, {rad}, 0, 2*Pi}};
-//+ Surrounding square
-Point(2) = {{-{half_side}, -{half_side}, 0, 1.0}};
-Point(3) = {{-{half_side},  {half_side}, 0, 1.0}};
-Point(4) = {{ {half_side},  {half_side}, 0, 1.0}};
-Point(5) = {{ {half_side}, -{half_side}, 0, 1.0}};
-Line(2) = {{2, 3}};
-Line(3) = {{3, 4}};
-Line(4) = {{4, 5}};
-Line(5) = {{5, 2}};
-//+ Surface between circle and square
-Curve Loop(1) = {{1}};  // This loop is the circle
-Curve Loop(2) = {{2, 3, 4, 5}}; // This loop is the square
-Plane Surface(1) = {{2, 1}};
+    geo_code = """SetFactory("OpenCASCADE");
+//+
+Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
+//+
+Disk(2) = {{0, 0, 0, {rad}, {rad}}};
+//+
+BooleanDifference(4) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
 """.format(rad=radius,
-           half_side=side_length / 2)
+           half_side=side_length / 2,
+           side=side_length)
     base_file_name = \
         "circle_in_square-rad{rad}-side{side}".format(
             rad=radius, side=side_length)
@@ -64,3 +84,4 @@ if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
     make_circle_in_square(1.0, 6.0, mesh_dir)
+    make_ball_in_cube(1.0, 6.0, mesh_dir)
