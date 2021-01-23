@@ -296,7 +296,8 @@ logger.info("Building Mesh Hierarchy (mesh order %s)...", order)
 mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
                                           element_size,
                                           num_refinements,
-                                          order=order)
+                                          order=order,
+                                          cache=False)
 
 cell_sizes = [element_size * 2**-i for i in range(num_refinements)]
 mesh_names = [mesh_name[:mesh_name.find('.')] + str(cell_size)
