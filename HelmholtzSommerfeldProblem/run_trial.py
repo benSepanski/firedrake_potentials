@@ -12,7 +12,7 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, SpatialCoordinate, \
-    trisurf, warning, product, real, conditional
+        trisurf, warning, product, real, conditional
 
 import utils.norm_functions as norms
 from methods import run_method
@@ -28,8 +28,8 @@ logger = logging.getLogger("HelmholtzTrial")
 handler = logging.StreamHandler()
 # format string from pytential/pytential/log.py
 c_format = logging.Formatter(
-    "[%(name)s][%(levelname)s]  %(message)s (%(filename)s:%(lineno)d)"
-    )
+        "[%(name)s][%(levelname)s]  %(message)s (%(filename)s:%(lineno)d)"
+        )
 handler.setFormatter(c_format)
 logger.addHandler(handler)
 logger.setLevel(level=logging.INFO)
@@ -37,12 +37,12 @@ logger.setLevel(level=logging.INFO)
 # {{{ Trial settings for user to modify
 
 mesh_options = {
-    # Must be one of the keys of mesh_options['mesh_options']
-    'mesh_name': 'circle_in_square',
-    # clmax of coarsest mesh
-    'element_size': 0.5,
-    # number of refinements
-    'num_refinements': 4,
+        # Must be one of the keys of mesh_options['mesh_options']
+        'mesh_name': 'circle_in_square',
+        # clmax of coarsest mesh
+        'element_size': 2**-6,
+        # number of refinements
+        'num_refinements': 2,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -61,9 +61,9 @@ mesh_options = {
     },
 }
 
-kappa_list = [1.0]
-degree_list = [1]
-method_list = ['nonlocal', 'pml']
+kappa_list = [0.1, 1.0, 5.0, 10.0]
+degree_list = [1, 2, 3, 4, 5, 6]
+method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -71,9 +71,7 @@ method_list = ['nonlocal', 'pml']
 # for preconditioning
 #
 # Use 'gamma' or 'beta' for an altering of the preconditioner (non-pyamg).
-method_to_kwargs = {
-    'transmission': {
-        'options_prefix': 'transmission',
+"""
         'solver_parameters': {'pc_type': 'pyamg',
                               'ksp_type': 'fgmres',
                               'ksp_max_it': 50,
@@ -81,6 +79,13 @@ method_to_kwargs = {
                               'pyamg_maxiter': 3,
                               'ksp_monitor_true_residual': None,
                               },
+"""
+method_to_kwargs = {
+    'transmission': {
+        'options_prefix': 'transmission',
+        'solver_parameters': {'pc_type': 'lu',
+                              'ksp_type': 'preonly'
+                              }
     },
     'pml': {
         'pml_type': 'bdy_integral',
@@ -108,10 +113,10 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = False  # pylint: disable=C0103
+use_cache = True  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = True  # pylint: disable=C0103
+write_over_duplicate_trials = False  # pylint: disable=C0103
 
 # Num refinements?
 
@@ -153,7 +158,7 @@ except KeyError:
 
 # Open cache file to get any previously computed results
 logger.info("Reading cache...")
-cache_file_name = "data/" + mesh_name[:mesh_name.find('.')] + '.csv'
+cache_file_name = "data/" + mesh_name + '.csv'
 try:
     in_file = open(cache_file_name)
     cache_reader = csv.DictReader(in_file)
@@ -299,8 +304,8 @@ mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
                                           order=order,
                                           cache=False)
 
-cell_sizes = [element_size * 2**-i for i in range(num_refinements)]
-mesh_names = [mesh_name[:mesh_name.find('.')] + str(cell_size)
+cell_sizes = [element_size * 2**-i for i in range(num_refinements+1)]
+mesh_names = [mesh_name + str(cell_size)
               for cell_size in cell_sizes]
 
 logger.info("Mesh Hierarchy prepared.")
@@ -338,7 +343,9 @@ field_names = ('Mesh Order', 'Cutoff Size',
 
 setup_info = {'Mesh Order': str(order)}
 if mesh_name in ['circle_in_square', 'ball_in_cube']:
-    setup_info['Cutoff Size'] = mesh_options['cutoff_size']
+    setup_info['Cutoff Size'] = str(mesh_options['cutoff_size'])
+else:
+    setup_info['Cutoff Size'] = str('')
 
 for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes,
                                       mesh_names,
