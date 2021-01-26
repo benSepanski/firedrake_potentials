@@ -40,20 +40,20 @@ mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
         'mesh_name': 'circle_in_square',
         # clmax of coarsest mesh
-        'element_size': 2**-5,
+        'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 3,
+        'num_refinements': 7,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
             'radius': 1.0,
-             # This can be an iterable of an ints or just one
-            'cutoff_size': [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0],
+             # This can be a list of floats or just one float
+            'cutoff_size': 1.0,
         },
         'ball_in_cube': {
             'radius': 1.0,
-             # This can be an iterable of an ints or just one
-            'cutoff_size': [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0],
+             # This can be a list of floats or just one float
+            'cutoff_size': 1.0,
         },
         'annulus': {
             'inner_radius': 1.0,
@@ -64,7 +64,7 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [1]
+degree_list = [2, 3, 4]
 method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
@@ -204,8 +204,11 @@ if mesh_name in ['annulus', 'circle_in_square']:
         pml_min = [2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
-        if isinstance(mesh_options['cutoff_size'], int):
+        if not isinstance(mesh_options['cutoff_size'], list):
             mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
+        for cutoff_size in mesh_options['cutoff_size']:
+            if not isinstance(cutoff_size, float):
+                raise TypeError("Each cutoff size must be a float")
         mesh_file_names = ["circle_in_square-rad{rad}-side{side}.step"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))
@@ -233,8 +236,11 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         pml_min = [2, 2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
-        if isinstance(mesh_options['cutoff_size'], int):
+        if not isinstance(mesh_options['cutoff_size'], list):
             mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
+        for cutoff_size in mesh_options['cutoff_size']:
+            if not isinstance(cutoff_size, float):
+                raise TypeError("Each cutoff size must be a float")
         mesh_file_names = ["ball_in_cube-rad{rad}-side{side}.step"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))

@@ -138,12 +138,16 @@ if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
     # ball in cube
+    make_ball_in_cube(1.0, 12.0, mesh_dir)
+    make_ball_in_cube(1.0, 8.0, mesh_dir)
     make_ball_in_cube(1.0, 6.0, mesh_dir)
     make_ball_in_cube(1.0, 5.5, mesh_dir)
     make_ball_in_cube(1.0, 5.0, mesh_dir)
     make_ball_in_cube(1.0, 4.5, mesh_dir)
     make_ball_in_cube(1.0, 4.2, mesh_dir)
     # circle in square
+    make_circle_in_square(1.0, 12.0, mesh_dir)
+    make_circle_in_square(1.0, 8.0, mesh_dir)
     make_circle_in_square(1.0, 6.0, mesh_dir)
     make_circle_in_square(1.0, 5.5, mesh_dir)
     make_circle_in_square(1.0, 5.0, mesh_dir)
