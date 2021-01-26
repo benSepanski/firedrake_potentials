@@ -40,18 +40,20 @@ mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
         'mesh_name': 'circle_in_square',
         # clmax of coarsest mesh
-        'element_size': 2**-6,
+        'element_size': 2**-5,
         # number of refinements
-        'num_refinements': 2,
+        'num_refinements': 3,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
             'radius': 1.0,
-            'cutoff_size': 1.0,
+             # This can be an iterable of an ints or just one
+            'cutoff_size': [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0],
         },
         'ball_in_cube': {
             'radius': 1.0,
-            'cutoff_size': 1.0,
+             # This can be an iterable of an ints or just one
+            'cutoff_size': [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0],
         },
         'annulus': {
             'inner_radius': 1.0,
@@ -62,7 +64,7 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [1, 2, 3, 4, 5, 6]
+degree_list = [1]
 method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
@@ -191,7 +193,6 @@ uncached_results = {}
 if write_over_duplicate_trials:
     uncached_results = cache
 
-# Hankel approximation cutoff
 mesh_dim = None  # pylint: disable=C0103
 if mesh_name in ['annulus', 'circle_in_square']:
     mesh_dim = 2  # pylint: disable=C0103
@@ -201,10 +202,14 @@ if mesh_name in ['annulus', 'circle_in_square']:
         inner_bdy_id = 5  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4]
         pml_min = [2, 2]
-        pml_max = [2 + mesh_options['cutoff_size'] for _ in range(2)]
-        mesh_file_name = "circle_in_square-rad{rad}-side{side}.step".format(
-            rad=mesh_options['radius'],
-            side=2 * (2 + mesh_options['cutoff_size']))
+        pml_max = None  # Set during iteration based on cutoff size 
+        # if only one cutoff size given, convert to iterable
+        if isinstance(mesh_options['cutoff_size'], int):
+            mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
+        mesh_file_names = ["circle_in_square-rad{rad}-side{side}.step"
+                           .format(rad=mesh_options['radius'],
+                                   side=2 * (2 + cutoff))
+                           for cutoff in mesh_options['cutoff_size']]
     elif mesh_name == 'annulus':
         inner_bdy_id = 2  # pylint: disable=C0103
         outer_bdy_id = 1  # pylint: disable=C0103
@@ -212,10 +217,11 @@ if mesh_name in ['annulus', 'circle_in_square']:
             raise ValueError('pml not supported on annulus mesh')
         pml_min = None  # pylint: disable=C0103
         pml_max = None  # pylint: disable=C0103
-        mesh_file_name = \
-            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.step"\
+        mesh_file_names = [
+            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.step"
             .format(inner_rad=mesh_options['inner_radius'],
                     outer_rad=mesh_options['outer_radius'])
+            ]
 
 elif mesh_name in ['ball_in_cube', 'betterplane']:
     mesh_dim = 3  # pylint: disable=C0103
@@ -225,17 +231,21 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         inner_bdy_id = 7  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]
         pml_min = [2, 2, 2]
-        pml_max = [2 + mesh_options['cutoff_size'] for _ in range(3)]
-        mesh_file_name = "ball_in_cube-rad{rad}-side{side}.step".format(
-            rad=mesh_options['radius'],
-            side=2 * (2 + mesh_options['cutoff_size']))
+        pml_max = None  # Set during iteration based on cutoff size 
+        # if only one cutoff size given, convert to iterable
+        if isinstance(mesh_options['cutoff_size'], int):
+            mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
+        mesh_file_names = ["ball_in_cube-rad{rad}-side{side}.step"
+                           .format(rad=mesh_options['radius'],
+                                   side=2 * (2 + cutoff))
+                           for cutoff in mesh_options['cutoff_size']]
 
     elif mesh_name == 'betterplane':
         inner_bdy_id = list(range(7, 32))  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]  # pylint: disable=C0103
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
-        mesh_file_name = "betterplane.step"
+        mesh_file_names = "betterplane.step"
         raise NotImplementedError("betterplane requires a source layer"
                                   " involving multiple boundary tags. "
                                   " Not yet implemented")
@@ -243,11 +253,12 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
 else:
     raise ValueError("Unrecognized mesh name '%s'." % mesh_name)
 
-if not isfile(join('meshes', mesh_file_name)):
-    raise ValueError(
-        "{mesh_file} not found. Modify bin/make_meshes to "
-        "generate appropriate mesh, or modify mesh options."
-        .format(mesh_file=join('meshes', mesh_file_name)))
+for  mesh_file_name in mesh_file_names:
+    if not isfile(join('meshes', mesh_file_name)):
+        raise ValueError(
+            "{mesh_file} not found. Modify bin/make_meshes to "
+            "generate appropriate mesh, or modify mesh options."
+            .format(mesh_file=join('meshes', mesh_file_name)))
 
 
 def get_true_sol_expr(spatial_coord):
@@ -297,18 +308,32 @@ for mkey in method_to_kwargs:
 
 from firedrake import OpenCascadeMeshHierarchy
 order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
-logger.info("Building Mesh Hierarchy (mesh order %s)...", order)
-mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
-                                          element_size,
-                                          num_refinements,
-                                          order=order,
-                                          cache=False)
 
-cell_sizes = [element_size * 2**-i for i in range(num_refinements+1)]
-mesh_names = [mesh_name + str(cell_size)
-              for cell_size in cell_sizes]
+# may have multiple mesh files if multiple cutoff sizes
+meshes = []
+cell_sizes = []
+mesh_names = []
+cutoff_sizes = []
+for i, mesh_file_name in enumerate(mesh_file_names):
+    logger.info("Building Mesh Hierarchy %s / %s with mesh order %s...",
+                i+1,
+                len(mesh_file_names),
+                order)
+    mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
+                                              element_size,
+                                              num_refinements,
+                                              order=order,
+                                              project_refinements_to_cad=True,
+                                              cache=False)
 
-logger.info("Mesh Hierarchy prepared.")
+    meshes += mesh_hierarchy.meshes
+    cell_sizes += [element_size * 2**-i for i in range(num_refinements+1)]
+    mesh_names += [mesh_name + str(cell_size) for cell_size in cell_sizes[-num_refinements-1:]]
+    cutoff_size = ''
+    if 'cutoff_size' in mesh_options:
+        cutoff_size = mesh_options['cutoff_size'][i]
+    cutoff_sizes += [cutoff_size for _ in range(num_refinements + 1)]
+    logger.info("Mesh Hierarchy prepared.")
 
 # {{{ Get setup options for each method
 for method in method_list:
@@ -347,10 +372,14 @@ if mesh_name in ['circle_in_square', 'ball_in_cube']:
 else:
     setup_info['Cutoff Size'] = str('')
 
-for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes,
-                                      mesh_names,
-                                      cell_sizes):
+for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
+                                                   mesh_names,
+                                                   cell_sizes,
+                                                   cutoff_sizes):
     setup_info['h'] = str(cell_size)
+    setup_info['Cutoff Size'] = str(cutoff_size)
+    if(cutoff_size != '' and 'pml' in method_to_kwargs):
+        method_to_kwargs['pml']['pml_max'] = [2 + cutoff_size for _ in range(mesh_dim)]
 
     for degree in degree_list:
         setup_info['degree'] = str(degree)
@@ -515,55 +544,55 @@ for mesh, mesh_name, cell_size in zip(mesh_hierarchy.meshes,
                 print("H1 Err: ", h1_err)
                 print()
 
-        # write to cache if necessary (after gone through kappas)
-        if uncached_results:
-            logger.info("Writing to cache...")
+                # write to cache if necessary (after every computation)
+                if uncached_results:
+                    logger.info("Writing to cache...")
 
-            write_header = False  # pylint: disable=C0103
-            if write_over_duplicate_trials:
-                out_file = open(cache_file_name, 'w')
-                write_header = True
-            else:
-                if not os.path.isfile(cache_file_name):
-                    write_header = True
-                out_file = open(cache_file_name, 'a')
+                    write_header = False  # pylint: disable=C0103
+                    if write_over_duplicate_trials:
+                        out_file = open(cache_file_name, 'w')
+                        write_header = True
+                    else:
+                        if not os.path.isfile(cache_file_name):
+                            write_header = True
+                        out_file = open(cache_file_name, 'a')
 
-            cache_writer = csv.DictWriter(out_file, field_names)
+                    cache_writer = csv.DictWriter(out_file, field_names)
 
-            if write_header:
-                cache_writer.writeheader()
+                    if write_header:
+                        cache_writer.writeheader()
 
-            # {{{ Move data to cache dictionary and append to file
-            #     if not writing over duplicates
-            for key in uncached_results:
-                if key in cache and not write_over_duplicate_trials:
+                    # {{{ Move data to cache dictionary and append to file
+                    #     if not writing over duplicates
+                    for key in uncached_results:
+                        if key in cache and not write_over_duplicate_trials:
+                            out_file.close()
+                            raise ValueError('Duplicating trial, maybe set'
+                                             ' write_over_duplicate_trials to *True*?')
+
+                        row = dict(key)
+                        for output in uncached_results[key]:
+                            row[output] = uncached_results[key][output]
+
+                        if not write_over_duplicate_trials:
+                            cache_writer.writerow(row)
+                        cache[key] = uncached_results[key]
+
+                    uncached_results = {}
+
+                    # }}}
+
+                    # {{{ Re-write all data if writing over duplicates
+
+                    if write_over_duplicate_trials:
+                        for key in cache:
+                            row = dict(key)
+                            for output in cache[key]:
+                                row[output] = cache[key][output]
+                            cache_writer.writerow(row)
+
+                    # }}}
+
                     out_file.close()
-                    raise ValueError('Duplicating trial, maybe set'
-                                     ' write_over_duplicate_trials to *True*?')
 
-                row = dict(key)
-                for output in uncached_results[key]:
-                    row[output] = uncached_results[key][output]
-
-                if not write_over_duplicate_trials:
-                    cache_writer.writerow(row)
-                cache[key] = uncached_results[key]
-
-            uncached_results = {}
-
-            # }}}
-
-            # {{{ Re-write all data if writing over duplicates
-
-            if write_over_duplicate_trials:
-                for key in cache:
-                    row = dict(key)
-                    for output in cache[key]:
-                        row[output] = cache[key][output]
-                    cache_writer.writerow(row)
-
-            # }}}
-
-            out_file.close()
-
-            logger.info("cache closed")
+                    logger.info("cache closed")
