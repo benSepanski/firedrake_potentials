@@ -29,7 +29,7 @@ Next, we hack master loopy into the firedrake environment as loopyy and make vol
 (from the master branch) instead of loopy (from firedrake).
 ```bash
 pip install git+https://gitlab.tiker.net/ben_sepanski/loopy.git@loopy_to_loopyy#egg=loo.pyy
-for i in boxtree sumpy volumential ; do
+for i in boxtree sumpy pytential volumential ; do
     pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/$i.git@loopy_to_loopyy ;
 done ;
 ```
