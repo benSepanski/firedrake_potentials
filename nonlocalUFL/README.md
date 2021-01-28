@@ -43,6 +43,9 @@ git checkout --track sepanski_fork/pointwise-adjoint-operator-layer-potentials
 cd ..
 pip install -e firedrake
 ```
+Run `pip list | grep loo`. If you see both `loo.py` and `loopy`,
+run `pip uninstall loopy`. Run `pip list | grep loo` again, and you should
+no longer see `loopy`.
 
 Now go to whichever directory you want this github project in, clone it,
 and try running `python3 volumential_test.py`. You should get an error
