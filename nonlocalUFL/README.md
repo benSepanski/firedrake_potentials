@@ -28,10 +28,10 @@ Next, we hack master loopy into the firedrake environment as loopyy and make vol
 (and some other relevant packages) look for loopyy
 (from the master branch) instead of loopy (from firedrake).
 ```bash
-pip install git+https://gitlab.tiker.net/inducer/modepy.git ;
+pip install --upgrade git+https://gitlab.tiker.net/inducer/modepy.git ;
 pip install git+https://gitlab.tiker.net/ben_sepanski/loopy.git@loopy_to_loopyy#egg=loo.pyy ;
 for i in boxtree sumpy meshmode pytential volumential ; do
-    pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/$i.git@loopy_to_loopyy ;
+    pip install --upgrade -U "eager" git+https://gitlab.tiker.net/ben_sepanski/$i.git@loopy_to_loopyy ;
 done ;
 ```
 Run `pip list | grep loo`. If you see both `loo.py` and `loopy`,
