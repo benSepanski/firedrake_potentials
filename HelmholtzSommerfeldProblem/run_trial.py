@@ -487,8 +487,8 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                          for coord, min_ in zip(SpatialCoordinate(mesh),
                                                 pml_min)])
                     diff = true_sol - comp_sol
-                    l2_err = norms.l2_norm(diff * one_in_inner_region)
-                    h1_err = norms.h1_norm(diff * one_in_inner_region)
+                    l2_err = abs(norms.l2_norm(diff * one_in_inner_region))
+                    h1_err = abs(norms.h1_norm(diff * one_in_inner_region))
 
                     uncached_results[key]['L2 Error'] = l2_err
                     uncached_results[key]['H1 Error'] = h1_err
