@@ -65,6 +65,7 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                          actx=None,
                          dgfspace=None,
                          dgvfspace=None,
+                         meshmode_src_connection=None,
                          qbx_kwargs=None,
                          ):
     r"""
@@ -88,13 +89,6 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
 
     # {{{ Build src and tgt 
 
-    # Build connection fd -> meshmode near src boundary
-    from meshmode.interop.firedrake import build_connection_from_firedrake
-    meshmode_src_connection = build_connection_from_firedrake(
-        actx,
-        dgfspace,
-        grp_factory=None,
-        restrict_to_boundary=scatterer_bdy_id)
     # build connection meshmode near src boundary -> src boundary inside meshmode
     from meshmode.discretization.poly_element import \
         InterpolatoryQuadratureSimplexGroupFactory

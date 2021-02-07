@@ -40,9 +40,9 @@ mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
         'mesh_name': 'circle_in_square',
         # clmax of coarsest mesh
-        'element_size': 2**-1,
+        'element_size': 2**-7,
         # number of refinements
-        'num_refinements': 7,
+        'num_refinements': 1,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -64,7 +64,7 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [2, 3, 4]
+degree_list = [1]
 method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
@@ -390,6 +390,10 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
     for degree in degree_list:
         setup_info['degree'] = str(degree)
 
+        # The first time we run with a new mesh+fspace degree,
+        # clear any memoized objects
+        clear_memoized_objects = True
+
         for kappa in kappa_list:
             if isinstance(kappa, int):
                 setup_info['kappa'] = str(float(kappa))
@@ -467,7 +471,11 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                     kwargs = method_to_kwargs[method]
                     true_sol, comp_sol, snes_or_ksp = run_method.run_method(
                         trial, method, kappa,
+                        clear_memoized_objects=clear_memoized_objects,
                         comp_sol_name=method + " Computed Solution", **kwargs)
+                    # After we've started running on this mesh+fspace degree, don't
+                    # clear memoized objects until we get to the next mesh+fspace degree
+                    clear_memoized_objects = False
 
                     if isinstance(snes_or_ksp, PETSc.SNES):
                         ksp = snes_or_ksp.getKSP()
@@ -602,3 +610,4 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                     out_file.close()
 
                     logger.info("cache closed")
+    del mesh

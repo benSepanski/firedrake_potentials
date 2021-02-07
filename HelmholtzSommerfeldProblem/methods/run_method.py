@@ -61,11 +61,13 @@ memoized_objects = {}
 
 
 def run_method(trial, method, wave_number,
+               clear_memoized_objects=False,
                true_sol_name="True Solution",
                comp_sol_name="Computed Solution", **kwargs):
     """
         Returns (true solution, computed solution, snes_or_ksp)
 
+        :arg clear_memoized_objects: Destroy memoized objects if true.
         :arg trial: A dict mapping each trial option to a valid value
         :arg method: A valid method (see the keys of *method_options*)
         :arg wave_number: The wave number
@@ -76,6 +78,9 @@ def run_method(trial, method, wave_number,
         kwargs should include the method options for :arg:`trial['method']`.
         for the given method.
     """
+    if clear_memoized_objects:
+        memoized_objects = {}
+
     # Get boundary ids
     scatterer_bdy_id = kwargs['scatterer_bdy_id']
     outer_bdy_id = kwargs['outer_bdy_id']
@@ -145,6 +150,22 @@ def run_method(trial, method, wave_number,
         dgfspace = memoized_objects[memo_key]['dgfspace']
         dgvfspace = memoized_objects[memo_key]['dgvfspace']
 
+        # Get opencl array context
+        from meshmode.array_context import PyOpenCLArrayContext
+        actx = PyOpenCLArrayContext(queue)
+
+        # Build connection fd -> meshmode if not already built
+        if 'meshmode_src_connection' not in memoized_objects[memo_key]:
+            from meshmode.interop.firedrake import build_connection_from_firedrake
+            memoized_objects[memo_key]['meshmode_src_connection'] = \
+                build_connection_from_firedrake(
+                    actx,
+                    dgfspace,
+                    grp_factory=None,
+                    restrict_to_boundary=scatterer_bdy_id)
+
+        meshmode_src_connection = memoized_objects[memo_key]['meshmode_src_connection']
+
         # Set defaults for qbx kwargs
         qbx_order = kwargs.get('qbx_order', degree+2)
         fine_order = kwargs.get('fine_order', 4 * degree)
@@ -157,9 +178,6 @@ def run_method(trial, method, wave_number,
                       }
         # }}}
 
-        from meshmode.array_context import PyOpenCLArrayContext
-        actx = PyOpenCLArrayContext(queue)
-
         ksp, comp_sol = nonlocal_integral_eq(
             mesh, scatterer_bdy_id, outer_bdy_id,
             wave_number,
@@ -170,6 +188,7 @@ def run_method(trial, method, wave_number,
             actx=actx,
             dgfspace=dgfspace,
             dgvfspace=dgvfspace,
+            meshmode_src_connection=meshmode_src_connection,
             qbx_kwargs=qbx_kwargs,
             )
 
