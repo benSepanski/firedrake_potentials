@@ -41,7 +41,7 @@ mesh_options = {
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 4,
+        'num_refinements': 3,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -62,11 +62,9 @@ mesh_options = {
     },
 }
 
-#kappa_list = [0.1, 1.0, 5.0, 10.0]
-kappa_list = [0.1]
+kappa_list = [0.1, 1.0, 5.0, 10.0]
 degree_list = [1]
-#method_list = ['nonlocal', 'pml', 'transmission']
-method_list = ['nonlocal']
+method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
