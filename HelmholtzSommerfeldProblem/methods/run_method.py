@@ -79,6 +79,7 @@ def run_method(trial, method, wave_number,
         for the given method.
     """
     if clear_memoized_objects:
+        global memoized_objects
         memoized_objects = {}
 
     # Get boundary ids
