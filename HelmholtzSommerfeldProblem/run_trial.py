@@ -116,15 +116,15 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = False  # pylint: disable=C0103
+use_cache = True  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = True  # pylint: disable=C0103
+write_over_duplicate_trials = False  # pylint: disable=C0103
 
 # Num refinements?
 
 # Visualize solutions?
-visualize = True  # pylint: disable=C0103
+visualize = False  # pylint: disable=C0103
 
 
 def get_fmm_order(kappa, h):
@@ -151,6 +151,8 @@ def get_fmm_order(kappa, h):
 mesh_name = mesh_options['mesh_name']  # pylint: disable=C0103
 element_size = mesh_options['element_size']  # pylint: disable=C0103
 num_refinements = mesh_options['num_refinements']  # pylint: disable=C0103
+if num_refinements > 3:
+    raise ValueError("May produce incorrect results when num refinements is high.")
 try:
     mesh_options = mesh_options['mesh_options'][mesh_name]
 except KeyError:
