@@ -12,9 +12,8 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, SpatialCoordinate, \
-        trisurf, warning, product, real, conditional
+        trisurf, warning, product, real, conditional, norms
 
-import utils.norm_functions as norms
 from methods import run_method
 
 from firedrake.petsc import OptionsManager, PETSc
@@ -40,9 +39,9 @@ mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
         'mesh_name': 'circle_in_square',
         # clmax of coarsest mesh
-        'element_size': 2**-7,
+        'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 1,
+        'num_refinements': 4,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -63,9 +62,11 @@ mesh_options = {
     },
 }
 
-kappa_list = [0.1, 1.0, 5.0, 10.0]
+#kappa_list = [0.1, 1.0, 5.0, 10.0]
+kappa_list = [0.1]
 degree_list = [1]
-method_list = ['nonlocal', 'pml', 'transmission']
+#method_list = ['nonlocal', 'pml', 'transmission']
+method_list = ['nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -115,15 +116,15 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = True  # pylint: disable=C0103
+use_cache = False  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = False  # pylint: disable=C0103
+write_over_duplicate_trials = True  # pylint: disable=C0103
 
 # Num refinements?
 
 # Visualize solutions?
-visualize = False  # pylint: disable=C0103
+visualize = True  # pylint: disable=C0103
 
 
 def get_fmm_order(kappa, h):
@@ -174,6 +175,7 @@ try:
         output = {}
         input_ = dict(entry)
         for output_name in ['L2 Error', 'H1 Error', 'ndofs',
+                            'L2 True Norm', 'H1 True Norm',
                             'Iteration Number', 'Residual Norm',
                             'Converged Reason',
                             'Min Extreme Singular Value',
@@ -366,7 +368,8 @@ total_iter = len(mesh_names) * len(degree_list) * \
 field_names = ('Mesh Order', 'Cutoff Size',
                'h', 'degree', 'kappa', 'method',
                'pc_type', 'pc_side', 'FMM Order', 'ndofs',
-               'L2 Error', 'H1 Error', 'Iteration Number',
+               'L2 Error', 'H1 Error', 'L2 True Norm',
+               'H1 True Norm', 'Iteration Number',
                'gamma', 'beta', 'ksp_type',
                'Residual Norm', 'Converged Reason', 'ksp_rtol', 'ksp_atol',
                'Min Extreme Singular Value', 'Max Extreme Singular Value',
@@ -382,6 +385,13 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                                                    mesh_names,
                                                    cell_sizes,
                                                    cutoff_sizes):
+    if visualize:
+        from firedrake import triplot
+        import matplotlib.pyplot as plt
+        triplot(mesh)
+        plt.title("h=%.2e" % cell_size)
+        plt.show()
+
     setup_info['h'] = str(cell_size)
     setup_info['Cutoff Size'] = str(cutoff_size)
     if(cutoff_size != '' and 'pml' in method_to_kwargs):
@@ -495,11 +505,15 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                          for coord, min_ in zip(SpatialCoordinate(mesh),
                                                 pml_min)])
                     diff = true_sol - comp_sol
-                    l2_err = abs(norms.l2_norm(diff * one_in_inner_region))
-                    h1_err = abs(norms.h1_norm(diff * one_in_inner_region))
+                    l2_err = abs(norms.norm(diff * one_in_inner_region, norm_type="L2"))
+                    h1_err = abs(norms.norm(diff * one_in_inner_region, norm_type="H1"))
+                    l2_true_norm = abs(norms.norm(true_sol, norm_type="L2"))
+                    h1_true_norm = abs(norms.norm(true_sol, norm_type="H1"))
 
                     uncached_results[key]['L2 Error'] = l2_err
                     uncached_results[key]['H1 Error'] = h1_err
+                    uncached_results[key]['L2 True Norm'] = l2_true_norm
+                    uncached_results[key]['H1 True Norm'] = h1_true_norm
 
                     ndofs = true_sol.dat.data.shape[0]
                     uncached_results[key]['ndofs'] = str(ndofs)
