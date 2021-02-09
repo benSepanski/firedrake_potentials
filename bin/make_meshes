@@ -16,6 +16,9 @@ def save_geo_as_step(geo_file_name, step_file_name):
 def make_geo_and_step(geo_code, file_dir, base_file_name):
     """
     Take .geo code, write it to a .geo file and .step file
+    Also make .msh files of given element sizes
+
+    return geo_file_name
     """
     geo_file_name = join(file_dir, base_file_name + '.geo')
     step_file_name = join(file_dir, base_file_name + '.step')
@@ -23,24 +26,54 @@ def make_geo_and_step(geo_code, file_dir, base_file_name):
     geo_file.write(geo_code)
     geo_file.close()
     save_geo_as_step(geo_file_name, step_file_name)
+    return geo_file_name
+
+
+def make_msh(geo_file_name, mesh_dim, element_sizes):
+    """
+    Make msh files for the given element sizes of the geo file
+    """
+    base_file_name = geo_file_name[:-4]
+    for element_size in element_sizes:
+        command = ['gmsh', '-%d' % mesh_dim, geo_file_name,
+                   '-o', base_file_name + "-h%.5emsh" % element_size,
+                   '-clmax', str(element_size)]
+        print(command)
+        call(command)
 
 
 def make_ball_in_cube(radius,
                       side_length,
                       file_dir):
     """
-    Make a ball inside a cube
+    Make a ball inside a cube, with a 4x4x4 cube inbetween
     as a .geo file and .step file in file-dir saved as
 
     file_dir/ball_in_cube-rad{rad}-side{side}.geo/step
     """
+    if side_length <= 4.0:
+        raise ValueError("Side length must be > 4.0")
+    if radius >= 2.0:
+        raise ValueError("Radius must be < 2.0")
     geo_code = """SetFactory("OpenCASCADE");
 //+
 Box(1) = {{-{half_side}, -{half_side}, -{half_side}, {side}, {side}, {side}}};
 //+
-Sphere(2) = {{0, 0, 0, {rad}}};
+outerBoxBoundary() = Boundary{{Volume{{1}};}};
 //+
-BooleanDifference(3) = {{Volume{{1}}; Delete;}}{{Volume{{2}}; Delete;}};
+Delete{{ Volume{{1}}; }}
+//+
+Box(2) = {{-2, -2, -2, 4, 4, 4}};
+//+
+innerBoxBoundary() = Boundary{{Volume{{2}};}};
+//+
+Sphere(3) = {{0, 0, 0, {rad}}};
+//+ Add volume between outer cube and inner cube
+Surface Loop(4) = {{outerBoxBoundary()}};
+Surface Loop(5) = {{innerBoxBoundary()}};
+Volume(4) = {{4, 5}};
+//+ delete sphere from cubes
+BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}}
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -48,25 +81,38 @@ BooleanDifference(3) = {{Volume{{1}}; Delete;}}{{Volume{{2}}; Delete;}};
         "ball_in_cube-rad{rad}-side{side}".format(
             rad=radius, side=side_length)
 
-    make_geo_and_step(geo_code, file_dir, base_file_name)
+    geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
+    mesh_dim = 3
+    element_sizes = [2 ** -i for i in range(1, 5)]
+    make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
 def make_circle_in_square(radius,
                           side_length,
                           file_dir):
     """
-    Make a circle inside a squares
+    Make a circle inside a square, with a 4x4 square
+    inbetween
     as a .geo file and .step file in file-dir saved as
 
     file_dir/circle_in_square-rad{rad}-side{side}.geo/step
     """
+    if side_length <= 4.0:
+        raise ValueError("Side length must be > 4.0")
+    if radius >= 2.0:
+        raise ValueError("Radius must be < 2.0")
+
     geo_code = """SetFactory("OpenCASCADE");
 //+
 Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
 //+
-Disk(2) = {{0, 0, 0, {rad}, {rad}}};
+Rectangle(2) = {{-2, -2, 0, 4, 4}};
 //+
-BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
+Disk(3) = {{0, 0, 0, {rad}, {rad}}};
+//+ merge rectangles
+mergedRects() = BooleanUnion{{Surface{{2}}; Delete;}}{{Surface{{1}}; Delete;}};
+//+ delete circle from rectangles
+BooleanDifference{{Surface{{mergedRects()}}; Delete;}}{{Surface{{3}}; Delete;}}
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -74,7 +120,10 @@ BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
         "circle_in_square-rad{rad}-side{side}".format(
             rad=radius, side=side_length)
 
-    make_geo_and_step(geo_code, file_dir, base_file_name)
+    geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
+    mesh_dim = 3
+    element_sizes = [2 ** -i for i in range(1, 9)]
+    make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
 def make_annulus(inner_radius, outer_radius, file_dir):
