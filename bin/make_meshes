@@ -71,12 +71,21 @@ Box(2) = {{-2, -2, -2, 4, 4, 4}};
 innerBoxBoundary() = Boundary{{Volume{{2}};}};
 //+
 Sphere(3) = {{0, 0, 0, {rad}}};
+//+
+sphereBoundary() = Boundary{{Volume{{3}};}};
 //+ Add volume between outer cube and inner cube
 Surface Loop(4) = {{outerBoxBoundary()}};
 Surface Loop(5) = {{innerBoxBoundary()}};
 Volume(4) = {{4, 5}};
-//+ delete sphere from cubes
-BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}}
+//+ delete sphere from inner cube
+innerRegion() = BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}};
+//+ Physical things
+Physical Surface("outerBoundary") = {{outerBoxBoundary()}};
+Physical Surface("innerBoundary") = {{innerBoxBoundary()}};
+Physical Surface("sphereBoundary") = {{sphereBoundary()}};
+//+
+Physical Volume("pmlSpongeRegion") = {{4}};
+Physical Volume("innerRegion") = {{innerRegion()}};
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -112,14 +121,31 @@ def make_circle_in_square(radius,
 //+
 Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
 //+
+outerRectBoundary() = Boundary{{Surface{{1}};}};
+//+
 Rectangle(2) = {{-2, -2, 0, 4, 4}};
 //+
-Disk(3) = {{0, 0, 0, {rad}, {rad}}};
-//+ merge rectangles
-mergedRects() = BooleanUnion{{Surface{{2}}; Delete;}}{{Surface{{1}}; Delete;}};
-//+ delete circle from rectangles
-BooleanDifference{{Surface{{mergedRects()}}; Delete;}}{{Surface{{3}}; Delete;}}
+innerRectBoundary() = Boundary{{Surface{{2}};}};
 //+
+Disk(3) = {{0, 0, 0, {rad}, {rad}}};
+//+
+diskBoundary() = Boundary{{Surface{{3}};}};
+//+
+Curve Loop(4) = {{outerRectBoundary()}};
+//+
+Curve Loop(5) = {{innerRectBoundary()}};
+//+
+Curve Loop(6) = {{diskBoundary()}};
+//+
+Physical Curve("outerRectBoundary") = {{outerRectBoundary()}};
+Physical Curve("innerRectBoundary") = {{innerRectBoundary()}};
+Physical Curve("diskBoundary") = {{diskBoundary()}};
+//+ inner region
+BooleanDifference(4) = {{Surface{{2}}; Delete;}}{{Surface{{3}}; Delete;}};
+Physical Surface("innerSurface") = {{4}};
+//+ outer region
+Plane Surface(5) = {{4, 5}};
+Physical Surface("pmlSpongeSurface") = {{5}};
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -205,11 +231,11 @@ if __name__ == "__main__":
     make_circle_in_square(1.0, 4.5, mesh_dir, 6)
     make_circle_in_square(1.0, 5.0, mesh_dir, 6)
     make_circle_in_square(1.0, 5.5, mesh_dir, 6)
-    make_circle_in_square(1.0, 6.0, mesh_dir, 8)
+    make_circle_in_square(1.0, 6.0, mesh_dir, 1)
     make_circle_in_square(1.0, 8.0, mesh_dir, 6)
     make_circle_in_square(1.0, 12.0, mesh_dir, 6)
     # ball in cube
-    make_ball_in_cube(1.0, 6.0, mesh_dir, 4)
+    make_ball_in_cube(1.0, 6.0, mesh_dir, 1)
     # annulus
     make_annulus(1.0, 2.0, mesh_dir, 4)
     # betterplane

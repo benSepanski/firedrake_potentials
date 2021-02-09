@@ -2,8 +2,8 @@ from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-#mesh_name = "meshes/ball_in_cube-rad1.0-side6.0-h5.00000e-01.msh"
-mesh_name = "meshes/circle_in_square-rad1.0-side6.0-h5.00000e-01.msh"
+mesh_name = "meshes/ball_in_cube-rad1.0-side6.0-h5.00000e-01.msh"
+#mesh_name = "meshes/circle_in_square-rad1.0-side6.0-h5.00000e-01.msh"
 #mesh_name = "meshes/annulus-inner_rad1.0-outer_rad2.0-h5.00000e-01.msh"
 m = Mesh(mesh_name)
 m.init()

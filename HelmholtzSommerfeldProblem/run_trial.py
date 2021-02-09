@@ -227,6 +227,7 @@ if mesh_name in ['annulus', 'circle_in_square']:
             .format(inner_rad=mesh_options['inner_radius'],
                     outer_rad=mesh_options['outer_radius'])
             ]
+        raise NotImplementedError("annulus bdy ids are incorrect")
 
 elif mesh_name in ['ball_in_cube', 'betterplane']:
     mesh_dim = 3  # pylint: disable=C0103
