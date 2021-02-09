@@ -19,6 +19,7 @@ from methods import run_method
 from firedrake.petsc import OptionsManager, PETSc
 from firedrake.solving_utils import KSPReasons
 from utils.hankel_function import hankel_function
+from utils.norm_functions import l2_norm, h1_norm
 
 import faulthandler
 faulthandler.enable()
@@ -41,7 +42,7 @@ mesh_options = {
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 6,
+        'num_refinements': 4,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -203,6 +204,7 @@ if mesh_name in ['annulus', 'circle_in_square']:
     if mesh_name == 'circle_in_square':
         inner_bdy_id = 3  # pylint: disable=C0103
         outer_bdy_id = 1
+        non_sponge_region = 4
         pml_min = [2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -218,6 +220,7 @@ if mesh_name in ['annulus', 'circle_in_square']:
     elif mesh_name == 'annulus':
         inner_bdy_id = 2  # pylint: disable=C0103
         outer_bdy_id = 1  # pylint: disable=C0103
+        non_sponge_region = None
         if 'pml' in method_list:
             raise ValueError('pml not supported on annulus mesh')
         pml_min = None  # pylint: disable=C0103
@@ -236,6 +239,7 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
     if mesh_name == 'ball_in_cube':
         inner_bdy_id = 1  # pylint: disable=C0103
         outer_bdy_id = 3
+        non_sponge_region = 4
         pml_min = [2, 2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -252,6 +256,7 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
     elif mesh_name == 'betterplane':
         inner_bdy_id = list(range(7, 32))  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]  # pylint: disable=C0103
+        non_sponge_region = None
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
         mesh_file_names = "betterplane"
@@ -457,8 +462,8 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
                 if not use_cache or key not in cache:
                     # Build mesh if not done so already
                     if mesh is None:
-                        logger.info("Building Mesh Hierarchy with element size %s " +
-                                    " and mesh order %s with 0 refinements...",
+                        logger.info("Reading Mesh with element size %s " +
+                                    " and mesh order %s...",
                                     cell_size,
                                     order)
                         # read in using open-cascade with 0 refinements, this allows
@@ -506,18 +511,11 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
 
                     uncached_results[key] = {}
 
-                    # 1 in inner-region, 0 in PML region
-                    one_in_inner_region = product(
-                        [conditional(abs(real(coord)) >= real(min_),
-                                     Constant(0.0),
-                                     Constant(1.0))
-                         for coord, min_ in zip(SpatialCoordinate(mesh),
-                                                pml_min)])
                     diff = true_sol - comp_sol
-                    l2_err = abs(norms.norm(diff * one_in_inner_region, norm_type="L2"))
-                    h1_err = abs(norms.norm(diff * one_in_inner_region, norm_type="H1"))
-                    l2_true_norm = abs(norms.norm(true_sol, norm_type="L2"))
-                    h1_true_norm = abs(norms.norm(true_sol, norm_type="H1"))
+                    l2_err = abs(l2_norm(diff, region=non_sponge_region))
+                    h1_err = abs(h1_norm(diff, region=non_sponge_region))
+                    l2_true_norm = abs(l2_norm(true_sol, region=non_sponge_region))
+                    h1_true_norm = abs(h1_norm(true_sol, region=non_sponge_region))
 
                     uncached_results[key]['L2 Error'] = l2_err
                     uncached_results[key]['H1 Error'] = h1_err

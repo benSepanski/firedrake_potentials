@@ -231,7 +231,7 @@ if __name__ == "__main__":
     make_circle_in_square(1.0, 4.5, mesh_dir, 6)
     make_circle_in_square(1.0, 5.0, mesh_dir, 6)
     make_circle_in_square(1.0, 5.5, mesh_dir, 6)
-    make_circle_in_square(1.0, 6.0, mesh_dir, 1)
+    make_circle_in_square(1.0, 6.0, mesh_dir, 8)
     make_circle_in_square(1.0, 8.0, mesh_dir, 6)
     make_circle_in_square(1.0, 12.0, mesh_dir, 6)
     # ball in cube
