@@ -12,7 +12,7 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, SpatialCoordinate, \
-        trisurf, warning, product, real, conditional, norms
+        trisurf, warning, product, real, conditional, norms, Mesh
 
 from methods import run_method
 
@@ -41,7 +41,7 @@ mesh_options = {
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 3,
+        'num_refinements': 6,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -64,6 +64,8 @@ mesh_options = {
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
 degree_list = [1]
+# degree_list = [2, 3]
+# degree_list = [4]
 method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
@@ -114,10 +116,10 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = True  # pylint: disable=C0103
+use_cache = False  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = False  # pylint: disable=C0103
+write_over_duplicate_trials = True  # pylint: disable=C0103
 
 # Num refinements?
 
@@ -149,8 +151,6 @@ def get_fmm_order(kappa, h):
 mesh_name = mesh_options['mesh_name']  # pylint: disable=C0103
 element_size = mesh_options['element_size']  # pylint: disable=C0103
 num_refinements = mesh_options['num_refinements']  # pylint: disable=C0103
-if num_refinements > 3:
-    raise ValueError("May produce incorrect results when num refinements is high.")
 try:
     mesh_options = mesh_options['mesh_options'][mesh_name]
 except KeyError:
@@ -211,7 +211,7 @@ if mesh_name in ['annulus', 'circle_in_square']:
         for cutoff_size in mesh_options['cutoff_size']:
             if not isinstance(cutoff_size, float):
                 raise TypeError("Each cutoff size must be a float")
-        mesh_file_names = ["circle_in_square-rad{rad}-side{side}.step"
+        mesh_file_names = ["circle_in_square-rad{rad}-side{side}"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))
                            for cutoff in mesh_options['cutoff_size']]
@@ -223,7 +223,7 @@ if mesh_name in ['annulus', 'circle_in_square']:
         pml_min = None  # pylint: disable=C0103
         pml_max = None  # pylint: disable=C0103
         mesh_file_names = [
-            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.step"
+            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}"
             .format(inner_rad=mesh_options['inner_radius'],
                     outer_rad=mesh_options['outer_radius'])
             ]
@@ -243,7 +243,7 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         for cutoff_size in mesh_options['cutoff_size']:
             if not isinstance(cutoff_size, float):
                 raise TypeError("Each cutoff size must be a float")
-        mesh_file_names = ["ball_in_cube-rad{rad}-side{side}.step"
+        mesh_file_names = ["ball_in_cube-rad{rad}-side{side}"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))
                            for cutoff in mesh_options['cutoff_size']]
@@ -253,20 +253,13 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         outer_bdy_id = [1, 2, 3, 4, 5, 6]  # pylint: disable=C0103
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
-        mesh_file_names = "betterplane.step"
+        mesh_file_names = "betterplane"
         raise NotImplementedError("betterplane requires a source layer"
                                   " involving multiple boundary tags. "
                                   " Not yet implemented")
 
 else:
     raise ValueError("Unrecognized mesh name '%s'." % mesh_name)
-
-for  mesh_file_name in mesh_file_names:
-    if not isfile(join('meshes', mesh_file_name)):
-        raise ValueError(
-            "{mesh_file} not found. Modify bin/make_meshes to "
-            "generate appropriate mesh, or modify mesh options."
-            .format(mesh_file=join('meshes', mesh_file_name)))
 
 
 def get_true_sol_expr(spatial_coord):
@@ -314,34 +307,30 @@ for mkey in method_to_kwargs:
         if gkey not in method_to_kwargs[mkey]:
             method_to_kwargs[mkey][gkey] = global_kwargs[gkey]
 
-from firedrake import OpenCascadeMeshHierarchy
 order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
 
 # may have multiple mesh files if multiple cutoff sizes
-meshes = []
+current_mesh_file_name = []
 cell_sizes = []
 mesh_names = []
 cutoff_sizes = []
 for i, mesh_file_name in enumerate(mesh_file_names):
-    logger.info("Building Mesh Hierarchy %s / %s with mesh order %s...",
-                i+1,
-                len(mesh_file_names),
-                order)
-    mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
-                                              element_size,
-                                              num_refinements,
-                                              order=order,
-                                              project_refinements_to_cad=True,
-                                              cache=False)
-
-    meshes += mesh_hierarchy.meshes
     cell_sizes += [element_size * 2**-i for i in range(num_refinements+1)]
+    current_mesh_file_name += [mesh_file_name + "-h%.5e.msh" % cell_size for cell_size in cell_sizes[-num_refinements-1:]]
     mesh_names += [mesh_name + str(cell_size) for cell_size in cell_sizes[-num_refinements-1:]]
     cutoff_size = ''
     if 'cutoff_size' in mesh_options:
         cutoff_size = mesh_options['cutoff_size'][i]
     cutoff_sizes += [cutoff_size for _ in range(num_refinements + 1)]
-    logger.info("Mesh Hierarchy prepared.")
+
+# Verify mesh names exist
+for  mesh_file_name in current_mesh_file_name:
+    if not isfile(join('meshes', mesh_file_name)):
+        raise ValueError(
+            "{mesh_file} not found. Modify bin/make_meshes to "
+            "generate appropriate mesh, or modify mesh options."
+            .format(mesh_file=join('meshes', mesh_file_name)))
+
 
 # {{{ Get setup options for each method
 for method in method_list:
@@ -381,21 +370,16 @@ if mesh_name in ['circle_in_square', 'ball_in_cube']:
 else:
     setup_info['Cutoff Size'] = str('')
 
-for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
-                                                   mesh_names,
-                                                   cell_sizes,
-                                                   cutoff_sizes):
-    if visualize:
-        from firedrake import triplot
-        import matplotlib.pyplot as plt
-        triplot(mesh)
-        plt.title("h=%.2e" % cell_size)
-        plt.show()
-
+for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_name,
+                                                             mesh_names,
+                                                             cell_sizes,
+                                                             cutoff_sizes):
     setup_info['h'] = str(cell_size)
     setup_info['Cutoff Size'] = str(cutoff_size)
     if(cutoff_size != '' and 'pml' in method_to_kwargs):
         method_to_kwargs['pml']['pml_max'] = [2 + cutoff_size for _ in range(mesh_dim)]
+
+    mesh = None
 
     for degree in degree_list:
         setup_info['degree'] = str(degree)
@@ -411,8 +395,7 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                 setup_info['kappa'] = str(kappa)
             true_sol_expr = None  # pylint: disable=C0103
 
-            trial = {'mesh': mesh,
-                     'degree': degree,
+            trial = {'degree': degree,
                      'true_sol_expr': true_sol_expr}
 
             for method in method_list:
@@ -471,6 +454,31 @@ for mesh, mesh_name, cell_size, cutoff_size in zip(meshes,
                 key = frozenset(setup_info.items())
 
                 if not use_cache or key not in cache:
+                    # Build mesh if not done so already
+                    if mesh is None:
+                        logger.info("Building Mesh Hierarchy with element size %s " +
+                                    " and mesh order %s with 0 refinements...",
+                                    cell_size,
+                                    order)
+                        # read in using open-cascade with 0 refinements, this allows
+                        # for order 2 meshes
+                        mesh = Mesh(join('meshes/', mesh_file_name))
+                        if order == 2:
+                            if mesh_name not in ['circle_in_square', 'ball_in_cube']:
+                                raise NotImplementedError("2nd order mesh only avaiilbale" +
+                                        " for circle_in_square or ball_in_cube")
+                            mesh = to_2nd_order(mesh, scatterer_bdy_id, mesh_options['rad'])
+
+                        if visualize:
+                            from firedrake import triplot
+                            import matplotlib.pyplot as plt
+                            triplot(mesh)
+                            plt.title("h=%.2e" % cell_size)
+                            plt.show()
+
+                    # make sure to store mesh in trial
+                    trial['mesh'] = mesh
+
                     # {{{  Compute true solution expression if haven't already
                     if true_sol_expr is None:
                         true_sol_expr = \

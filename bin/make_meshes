@@ -36,7 +36,7 @@ def make_msh(geo_file_name, mesh_dim, element_sizes):
     base_file_name = geo_file_name[:-4]
     for element_size in element_sizes:
         command = ['gmsh', '-%d' % mesh_dim, geo_file_name,
-                   '-o', base_file_name + "-h%.5emsh" % element_size,
+                   '-o', base_file_name + "-h%.5e.msh" % element_size,
                    '-clmax', str(element_size)]
         print(command)
         call(command)
@@ -44,12 +44,15 @@ def make_msh(geo_file_name, mesh_dim, element_sizes):
 
 def make_ball_in_cube(radius,
                       side_length,
-                      file_dir):
+                      file_dir,
+                      max_refine):
     """
     Make a ball inside a cube, with a 4x4x4 cube inbetween
     as a .geo file and .step file in file-dir saved as
 
     file_dir/ball_in_cube-rad{rad}-side{side}.geo/step
+
+    Make msh files with refinements from 2**-1 to 2**-max_refine
     """
     if side_length <= 4.0:
         raise ValueError("Side length must be > 4.0")
@@ -83,19 +86,22 @@ BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}}
 
     geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
     mesh_dim = 3
-    element_sizes = [2 ** -i for i in range(1, 5)]
+    element_sizes = [2 ** -i for i in range(1, max_refine+1)]
     make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
 def make_circle_in_square(radius,
                           side_length,
-                          file_dir):
+                          file_dir,
+                          max_refine):
     """
     Make a circle inside a square, with a 4x4 square
     inbetween
     as a .geo file and .step file in file-dir saved as
 
     file_dir/circle_in_square-rad{rad}-side{side}.geo/step
+
+    Make msh files with refinements from 2**-1 to 2**-max_refine
     """
     if side_length <= 4.0:
         raise ValueError("Side length must be > 4.0")
@@ -113,6 +119,7 @@ Disk(3) = {{0, 0, 0, {rad}, {rad}}};
 mergedRects() = BooleanUnion{{Surface{{2}}; Delete;}}{{Surface{{1}}; Delete;}};
 //+ delete circle from rectangles
 BooleanDifference{{Surface{{mergedRects()}}; Delete;}}{{Surface{{3}}; Delete;}}
+//+
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
@@ -121,17 +128,19 @@ BooleanDifference{{Surface{{mergedRects()}}; Delete;}}{{Surface{{3}}; Delete;}}
             rad=radius, side=side_length)
 
     geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
-    mesh_dim = 3
-    element_sizes = [2 ** -i for i in range(1, 9)]
+    mesh_dim = 2
+    element_sizes = [2 ** -i for i in range(1, max_refine+1)]
     make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
-def make_annulus(inner_radius, outer_radius, file_dir):
+def make_annulus(inner_radius, outer_radius, file_dir, max_refine):
     """
     Make an annulus
     as a .geo file and .step file in file-dir saved as
 
     file_dir/annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.geo/step
+
+    Make msh files with refinements from 2**-1 to 2**-max_refine
     """
     geo_code = """SetFactory("OpenCASCADE");
 //+
@@ -146,6 +155,11 @@ BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
             inner_rad=inner_radius, outer_rad=outer_radius)
 
     make_geo_and_step(geo_code, file_dir, base_file_name)
+
+    geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
+    mesh_dim = 2
+    element_sizes = [2 ** -i for i in range(1, max_refine+1)]
+    make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
 def make_betterplane(file_dir):
@@ -186,23 +200,17 @@ BooleanDifference{Volume{2}; Delete;}{Volume{v()}; Delete;}
 if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
-    # ball in cube
-    make_ball_in_cube(1.0, 12.0, mesh_dir)
-    make_ball_in_cube(1.0, 8.0, mesh_dir)
-    make_ball_in_cube(1.0, 6.0, mesh_dir)
-    make_ball_in_cube(1.0, 5.5, mesh_dir)
-    make_ball_in_cube(1.0, 5.0, mesh_dir)
-    make_ball_in_cube(1.0, 4.5, mesh_dir)
-    make_ball_in_cube(1.0, 4.2, mesh_dir)
     # circle in square
-    make_circle_in_square(1.0, 12.0, mesh_dir)
-    make_circle_in_square(1.0, 8.0, mesh_dir)
-    make_circle_in_square(1.0, 6.0, mesh_dir)
-    make_circle_in_square(1.0, 5.5, mesh_dir)
-    make_circle_in_square(1.0, 5.0, mesh_dir)
-    make_circle_in_square(1.0, 4.5, mesh_dir)
-    make_circle_in_square(1.0, 4.2, mesh_dir)
+    make_circle_in_square(1.0, 4.2, mesh_dir, 6)
+    make_circle_in_square(1.0, 4.5, mesh_dir, 6)
+    make_circle_in_square(1.0, 5.0, mesh_dir, 6)
+    make_circle_in_square(1.0, 5.5, mesh_dir, 6)
+    make_circle_in_square(1.0, 6.0, mesh_dir, 8)
+    make_circle_in_square(1.0, 8.0, mesh_dir, 6)
+    make_circle_in_square(1.0, 12.0, mesh_dir, 6)
+    # ball in cube
+    make_ball_in_cube(1.0, 6.0, mesh_dir, 4)
     # annulus
-    make_annulus(1.0, 2.0, mesh_dir)
+    make_annulus(1.0, 2.0, mesh_dir, 4)
     # betterplane
     make_betterplane(mesh_dir)

@@ -2,12 +2,12 @@ from firedrake import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-#mesh_name = "meshes/ball_in_cube-rad1.0-side6.0.step"
-#mesh_name = "meshes/circle_in_square-rad1.0-side6.0.step"
-#mesh_name = "meshes/betterplane.step"
-mesh_name = "meshes/annulus-inner_rad1.0-outer_rad2.0.step"
-m = OpenCascadeMeshHierarchy(mesh_name, 1.0, 1, cache=False).meshes[0]
+#mesh_name = "meshes/ball_in_cube-rad1.0-side6.0-h5.00000e-01.msh"
+mesh_name = "meshes/circle_in_square-rad1.0-side6.0-h5.00000e-01.msh"
+#mesh_name = "meshes/annulus-inner_rad1.0-outer_rad2.0-h5.00000e-01.msh"
+m = Mesh(mesh_name)
 m.init()
+print(m.exterior_facets.unique_markers)
 from matplotlib.collections import PolyCollection
 triplot(m, interior_kw={'alpha': 0.2}, boundary_kw={'alpha': 0.2})
 
