@@ -201,8 +201,8 @@ if mesh_name in ['annulus', 'circle_in_square']:
     hankel_cutoff = 80  # pylint: disable=C0103
 
     if mesh_name == 'circle_in_square':
-        inner_bdy_id = 5  # pylint: disable=C0103
-        outer_bdy_id = [1, 2, 3, 4]
+        inner_bdy_id = 3  # pylint: disable=C0103
+        outer_bdy_id = 1
         pml_min = [2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -234,8 +234,8 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
     hankel_cutoff = 50  # pylint: disable=C0103
 
     if mesh_name == 'ball_in_cube':
-        inner_bdy_id = 7  # pylint: disable=C0103
-        outer_bdy_id = [1, 2, 3, 4, 5, 6]
+        inner_bdy_id = 1  # pylint: disable=C0103
+        outer_bdy_id = 3
         pml_min = [2, 2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable

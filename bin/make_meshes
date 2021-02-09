@@ -80,8 +80,8 @@ Volume(4) = {{4, 5}};
 //+ delete sphere from inner cube
 innerRegion() = BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}};
 //+ Physical things
-Physical Surface("outerBoundary") = {{outerBoxBoundary()}};
-Physical Surface("innerBoundary") = {{innerBoxBoundary()}};
+Physical Surface("outerBoxBoundary") = {{outerBoxBoundary()}};
+Physical Surface("innerBoxBoundary") = {{innerBoxBoundary()}};
 Physical Surface("sphereBoundary") = {{sphereBoundary()}};
 //+
 Physical Volume("pmlSpongeRegion") = {{4}};

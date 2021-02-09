@@ -80,6 +80,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         (\partial_n - i\kappa\beta) u |_\Sigma = 0
     """
     # make sure we get outer bdy id as tuple in case it consists of multiple ids
+    if isinstance(outer_bdy_id, int):
+        outer_bdy_id = [outer_bdy_id]
     outer_bdy_id = tuple(outer_bdy_id)
     # away from the excluded region, but firedrake and meshmode point
     # into
