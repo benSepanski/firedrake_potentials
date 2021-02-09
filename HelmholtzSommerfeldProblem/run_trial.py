@@ -473,6 +473,7 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
                                 raise NotImplementedError("2nd order mesh only avaiilbale" +
                                         " for circle_in_square or ball_in_cube")
                             mesh = to_2nd_order(mesh, scatterer_bdy_id, mesh_options['rad'])
+                        logger.info("Mesh read in")
 
                         if visualize:
                             from firedrake import triplot
