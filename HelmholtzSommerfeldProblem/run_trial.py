@@ -117,10 +117,10 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = False  # pylint: disable=C0103
+use_cache = True  # pylint: disable=C0103
 
 # Write over duplicate trials?
-write_over_duplicate_trials = True  # pylint: disable=C0103
+write_over_duplicate_trials = False  # pylint: disable=C0103
 
 # Num refinements?
 
