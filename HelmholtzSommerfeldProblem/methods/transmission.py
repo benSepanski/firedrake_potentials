@@ -18,6 +18,8 @@ def transmission(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         (\partial_n - i\kappa\beta) u |_\Sigma = 0
     """
     # need as tuple so can use integral measure
+    if isinstance(outer_bdy_id, int):
+        outer_bdy_id = [outer_bdy_id]
     outer_bdy_id = tuple(outer_bdy_id)
 
     u = TrialFunction(fspace)

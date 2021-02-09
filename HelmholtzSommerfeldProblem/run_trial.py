@@ -12,13 +12,14 @@ queue = cl.CommandQueue(cl_ctx)
 
 # For WSL, all firedrake must be imported after pyopencl
 from firedrake import sqrt, Constant, pi, exp, SpatialCoordinate, \
-        trisurf, warning, product, real, conditional, norms
+        trisurf, warning, product, real, conditional, norms, Mesh
 
 from methods import run_method
 
 from firedrake.petsc import OptionsManager, PETSc
 from firedrake.solving_utils import KSPReasons
 from utils.hankel_function import hankel_function
+from utils.norm_functions import l2_norm, h1_norm
 
 import faulthandler
 faulthandler.enable()
@@ -63,8 +64,8 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-# degree_list = [1]
-degree_list = [2, 3]
+degree_list = [1]
+# degree_list = [2, 3]
 # degree_list = [4]
 method_list = ['nonlocal', 'pml', 'transmission']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
@@ -201,8 +202,9 @@ if mesh_name in ['annulus', 'circle_in_square']:
     hankel_cutoff = 80  # pylint: disable=C0103
 
     if mesh_name == 'circle_in_square':
-        inner_bdy_id = 5  # pylint: disable=C0103
-        outer_bdy_id = [1, 2, 3, 4]
+        inner_bdy_id = 3  # pylint: disable=C0103
+        outer_bdy_id = 1
+        non_sponge_region = 4
         pml_min = [2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -211,30 +213,33 @@ if mesh_name in ['annulus', 'circle_in_square']:
         for cutoff_size in mesh_options['cutoff_size']:
             if not isinstance(cutoff_size, float):
                 raise TypeError("Each cutoff size must be a float")
-        mesh_file_names = ["circle_in_square-rad{rad}-side{side}.step"
+        mesh_file_names = ["circle_in_square-rad{rad}-side{side}"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))
                            for cutoff in mesh_options['cutoff_size']]
     elif mesh_name == 'annulus':
         inner_bdy_id = 2  # pylint: disable=C0103
         outer_bdy_id = 1  # pylint: disable=C0103
+        non_sponge_region = None
         if 'pml' in method_list:
             raise ValueError('pml not supported on annulus mesh')
         pml_min = None  # pylint: disable=C0103
         pml_max = None  # pylint: disable=C0103
         mesh_file_names = [
-            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}.step"
+            "annulus-inner_rad{inner_rad}-outer_rad{outer_rad}"
             .format(inner_rad=mesh_options['inner_radius'],
                     outer_rad=mesh_options['outer_radius'])
             ]
+        raise NotImplementedError("annulus bdy ids are incorrect")
 
 elif mesh_name in ['ball_in_cube', 'betterplane']:
     mesh_dim = 3  # pylint: disable=C0103
     hankel_cutoff = 50  # pylint: disable=C0103
 
     if mesh_name == 'ball_in_cube':
-        inner_bdy_id = 7  # pylint: disable=C0103
-        outer_bdy_id = [1, 2, 3, 4, 5, 6]
+        inner_bdy_id = 1  # pylint: disable=C0103
+        outer_bdy_id = 3
+        non_sponge_region = 4
         pml_min = [2, 2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -243,7 +248,7 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         for cutoff_size in mesh_options['cutoff_size']:
             if not isinstance(cutoff_size, float):
                 raise TypeError("Each cutoff size must be a float")
-        mesh_file_names = ["ball_in_cube-rad{rad}-side{side}.step"
+        mesh_file_names = ["ball_in_cube-rad{rad}-side{side}"
                            .format(rad=mesh_options['radius'],
                                    side=2 * (2 + cutoff))
                            for cutoff in mesh_options['cutoff_size']]
@@ -251,22 +256,16 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
     elif mesh_name == 'betterplane':
         inner_bdy_id = list(range(7, 32))  # pylint: disable=C0103
         outer_bdy_id = [1, 2, 3, 4, 5, 6]  # pylint: disable=C0103
+        non_sponge_region = None
         pml_min = [11, 4.62, 10.5]
         pml_max = [12, 5.62, 11.5]
-        mesh_file_names = "betterplane.step"
+        mesh_file_names = "betterplane"
         raise NotImplementedError("betterplane requires a source layer"
                                   " involving multiple boundary tags. "
                                   " Not yet implemented")
 
 else:
     raise ValueError("Unrecognized mesh name '%s'." % mesh_name)
-
-for  mesh_file_name in mesh_file_names:
-    if not isfile(join('meshes', mesh_file_name)):
-        raise ValueError(
-            "{mesh_file} not found. Modify bin/make_meshes to "
-            "generate appropriate mesh, or modify mesh options."
-            .format(mesh_file=join('meshes', mesh_file_name)))
 
 
 def get_true_sol_expr(spatial_coord):
@@ -322,14 +321,21 @@ cell_sizes = []
 mesh_names = []
 cutoff_sizes = []
 for i, mesh_file_name in enumerate(mesh_file_names):
-    current_mesh_file_name += [mesh_file_name for _ in range(num_refinements+1)]
     cell_sizes += [element_size * 2**-i for i in range(num_refinements+1)]
+    current_mesh_file_name += [mesh_file_name + "-h%.5e.msh" % cell_size for cell_size in cell_sizes[-num_refinements-1:]]
     mesh_names += [mesh_name + str(cell_size) for cell_size in cell_sizes[-num_refinements-1:]]
     cutoff_size = ''
     if 'cutoff_size' in mesh_options:
         cutoff_size = mesh_options['cutoff_size'][i]
     cutoff_sizes += [cutoff_size for _ in range(num_refinements + 1)]
 
+# Verify mesh names exist
+for  mesh_file_name in current_mesh_file_name:
+    if not isfile(join('meshes', mesh_file_name)):
+        raise ValueError(
+            "{mesh_file} not found. Modify bin/make_meshes to "
+            "generate appropriate mesh, or modify mesh options."
+            .format(mesh_file=join('meshes', mesh_file_name)))
 
 # {{{ Get setup options for each method
 for method in method_list:
@@ -455,21 +461,18 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
                 if not use_cache or key not in cache:
                     # Build mesh if not done so already
                     if mesh is None:
-                        logger.info("Building Mesh Hierarchy with element size %s " +
-                                    " and mesh order %s with 0 refinements...",
+                        logger.info("Reading Mesh with element size %s " +
+                                    " and mesh order %s...",
                                     cell_size,
                                     order)
                         # read in using open-cascade with 0 refinements, this allows
                         # for order 2 meshes
-                        from firedrake import OpenCascadeMeshHierarchy
-                        mesh_hierarchy = OpenCascadeMeshHierarchy(join('meshes/', mesh_file_name),
-                                                                  cell_size,
-                                                                  0,
-                                                                  order=order,
-                                                                  project_refinements_to_cad=True,
-                                                                  cache=False)
-                        mesh, = mesh_hierarchy.meshes
-                        logger.info("Mesh Hierarchy prepared.")
+                        mesh = Mesh(join('meshes/', mesh_file_name))
+                        if order == 2:
+                            if mesh_name not in ['circle_in_square', 'ball_in_cube']:
+                                raise NotImplementedError("2nd order mesh only avaiilbale" +
+                                        " for circle_in_square or ball_in_cube")
+                            mesh = to_2nd_order(mesh, scatterer_bdy_id, mesh_options['rad'])
 
                         if visualize:
                             from firedrake import triplot
@@ -507,18 +510,11 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
 
                     uncached_results[key] = {}
 
-                    # 1 in inner-region, 0 in PML region
-                    one_in_inner_region = product(
-                        [conditional(abs(real(coord)) >= real(min_),
-                                     Constant(0.0),
-                                     Constant(1.0))
-                         for coord, min_ in zip(SpatialCoordinate(mesh),
-                                                pml_min)])
                     diff = true_sol - comp_sol
-                    l2_err = abs(norms.norm(diff * one_in_inner_region, norm_type="L2"))
-                    h1_err = abs(norms.norm(diff * one_in_inner_region, norm_type="H1"))
-                    l2_true_norm = abs(norms.norm(true_sol, norm_type="L2"))
-                    h1_true_norm = abs(norms.norm(true_sol, norm_type="H1"))
+                    l2_err = abs(l2_norm(diff, region=non_sponge_region))
+                    h1_err = abs(h1_norm(diff, region=non_sponge_region))
+                    l2_true_norm = abs(l2_norm(true_sol, region=non_sponge_region))
+                    h1_true_norm = abs(h1_norm(true_sol, region=non_sponge_region))
 
                     uncached_results[key]['L2 Error'] = l2_err
                     uncached_results[key]['H1 Error'] = h1_err
