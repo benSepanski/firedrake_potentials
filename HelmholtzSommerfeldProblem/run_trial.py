@@ -66,7 +66,7 @@ mesh_options = {
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
 #degree_list = [1]
-degree_list = [2, 3]
+degree_list = [2, 3, 4]
 #degree_list = [4]
 method_list = ['transmission', 'pml', 'nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
@@ -138,7 +138,7 @@ def get_fmm_order(kappa, h):
     """
     from math import log
     # FMM order to get tol accuracy
-    tol = 1e-4
+    tol = 1e-11
     global c
     if mesh_dim == 2:
         c = 0.5  # pylint: disable=C0103
@@ -582,19 +582,10 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                 if uncached_results:
                     logger.info("Writing to cache...")
 
-                    write_header = False  # pylint: disable=C0103
-                    if write_over_duplicate_trials:
-                        out_file = open(cache_file_name, 'w')
-                        write_header = True
-                    else:
-                        if not os.path.isfile(cache_file_name):
-                            write_header = True
-                        out_file = open(cache_file_name, 'a')
+                    out_file = open(cache_file_name, 'w')
 
                     cache_writer = csv.DictWriter(out_file, field_names)
-
-                    if write_header:
-                        cache_writer.writeheader()
+                    cache_writer.writeheader()
 
                     # {{{ Move data to cache dictionary and append to file
                     #     if not writing over duplicates
