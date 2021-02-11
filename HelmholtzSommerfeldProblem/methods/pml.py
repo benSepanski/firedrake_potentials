@@ -8,14 +8,12 @@ from firedrake import Constant, SpatialCoordinate, as_tensor, \
 def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         options_prefix=None, solver_parameters=None,
         fspace=None, tfspace=None, true_sol_grad=None,
-        pml_type=None, delta=None, quad_const=None, speed=None,
+        pml_type=None, quad_const=None, speed=None,
         pml_min=None, pml_max=None):
     """
         For unlisted arg descriptions, see run_method
 
         :arg pml_type: Type of pml function, either 'quadratic' or 'bdy_integral'
-        :arg delta: For :arg:`pml_type` of 'bdy_integral', added to denominator
-                    to prevent 1 / 0 at edge of boundary
         :arg quad_const: For :arg:`pml_type` of 'quadratic', a scaling constant
         :arg speed: Speed of sound
         :arg pml_min: A list, *pml_min[i]* is where to begin pml layer in direction
@@ -25,8 +23,6 @@ def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     # Handle defauls
     if pml_type is None:
         pml_type = 'bdy_integral'
-    if delta is None:
-        delta = 1e-3
     if quad_const is None:
         quad_const = 1.0
     if speed is None:
@@ -40,7 +36,7 @@ def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     # {{{ create sigma functions for PML
     sigma = None
     if pml_type == 'bdy_integral':
-        sigma = [Constant(speed) / (Constant(delta + extent) - abs(coord)) for
+        sigma = [Constant(speed) / (Constant(extent) - abs(coord)) for
                  extent, coord in zip(pml_max, xx)]
     elif pml_type == 'quadratic':
         sigma = [Constant(quad_const) * (abs(coord) - Constant(min_)) ** 2

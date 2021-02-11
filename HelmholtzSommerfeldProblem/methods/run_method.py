@@ -18,7 +18,6 @@ method_required_options = {'pml': set(['pml_min',
 # All have the options arguments 'options_prefix' and
 # 'solver_parameters'
 method_options = {'pml': ['pml_type',
-                          'delta',
                           'quad_const',
                           'speed'],
                   'nonlocal': ['FMM Order',
@@ -113,7 +112,6 @@ def run_method(trial, method, wave_number,
 
         # Get optional argumetns
         pml_type = kwargs.get('pml_type', None)
-        delta = kwargs.get('delta', None)
         quad_const = kwargs.get('quad_const', None)
         speed = kwargs.get('speed', None)
 
@@ -129,7 +127,7 @@ def run_method(trial, method, wave_number,
                              solver_parameters=solver_parameters,
                              fspace=fspace, tfspace=tfspace,
                              true_sol_grad=true_sol_grad,
-                             pml_type=pml_type, delta=delta, quad_const=quad_const,
+                             pml_type=pml_type, quad_const=quad_const,
                              speed=speed,
                              pml_min=pml_min,
                              pml_max=pml_max,
