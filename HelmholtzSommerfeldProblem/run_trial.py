@@ -20,6 +20,7 @@ from firedrake.petsc import OptionsManager, PETSc
 from firedrake.solving_utils import KSPReasons
 from utils.hankel_function import hankel_function
 from utils.norm_functions import l2_norm, h1_norm
+from utils.to_2nd_order import to_2nd_order
 
 import faulthandler
 faulthandler.enable()
@@ -42,7 +43,7 @@ mesh_options = {
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 7,
+        'num_refinements': 6,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square': {
@@ -64,10 +65,10 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [1]
-# degree_list = [2, 3]
-# degree_list = [4]
-method_list = ['nonlocal', 'pml', 'transmission']
+#degree_list = [1]
+degree_list = [2, 3]
+#degree_list = [4]
+method_list = ['transmission', 'pml', 'nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -237,9 +238,9 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
     hankel_cutoff = 50  # pylint: disable=C0103
 
     if mesh_name == 'ball_in_cube':
-        inner_bdy_id = 1  # pylint: disable=C0103
-        outer_bdy_id = 3
-        non_sponge_region = 4
+        inner_bdy_id = 3  # pylint: disable=C0103
+        outer_bdy_id = 1
+        non_sponge_region = 5
         pml_min = [2, 2, 2]
         pml_max = None  # Set during iteration based on cutoff size 
         # if only one cutoff size given, convert to iterable
@@ -298,7 +299,7 @@ global_kwargs = {'scatterer_bdy_id': inner_bdy_id,
                  'solver_parameters': {'snes_type': 'ksponly',
                                        'ksp_type': 'gmres',
                                        'ksp_gmres_restart': 30,
-                                       'ksp_rtol': 1.0e-7,
+                                       'ksp_rtol': 1.0e-11,
                                        'ksp_atol': 1.0e-50,
                                        'ksp_divtol': 1e4,
                                        'ksp_max_it': 10000,
@@ -318,12 +319,10 @@ order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
 # may have multiple mesh files if multiple cutoff sizes
 current_mesh_file_name = []
 cell_sizes = []
-mesh_names = []
 cutoff_sizes = []
 for i, mesh_file_name in enumerate(mesh_file_names):
     cell_sizes += [element_size * 2**-i for i in range(num_refinements+1)]
     current_mesh_file_name += [mesh_file_name + "-h%.5e.msh" % cell_size for cell_size in cell_sizes[-num_refinements-1:]]
-    mesh_names += [mesh_name + str(cell_size) for cell_size in cell_sizes[-num_refinements-1:]]
     cutoff_size = ''
     if 'cutoff_size' in mesh_options:
         cutoff_size = mesh_options['cutoff_size'][i]
@@ -356,7 +355,7 @@ for method in method_list:
 results = {}
 
 iteration = 0  # pylint: disable=C0103
-total_iter = len(mesh_names) * len(degree_list) * \
+total_iter = len(current_mesh_file_name) * len(degree_list) * \
              len(kappa_list) * len(method_list)
 
 field_names = ('Mesh Order', 'Cutoff Size',
@@ -375,10 +374,9 @@ if mesh_name in ['circle_in_square', 'ball_in_cube']:
 else:
     setup_info['Cutoff Size'] = str('')
 
-for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_name,
-                                                             mesh_names,
-                                                             cell_sizes,
-                                                             cutoff_sizes):
+for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
+                                                  cell_sizes,
+                                                  cutoff_sizes):
     setup_info['h'] = str(cell_size)
     setup_info['Cutoff Size'] = str(cutoff_size)
     if(cutoff_size != '' and 'pml' in method_to_kwargs):
@@ -471,8 +469,9 @@ for mesh_file_name, mesh_name, cell_size, cutoff_size in zip(current_mesh_file_n
                         if order == 2:
                             if mesh_name not in ['circle_in_square', 'ball_in_cube']:
                                 raise NotImplementedError("2nd order mesh only avaiilbale" +
-                                        " for circle_in_square or ball_in_cube")
-                            mesh = to_2nd_order(mesh, scatterer_bdy_id, mesh_options['rad'])
+                                        " for circle_in_square or ball_in_cube. Not available for " +
+                                        "'%s'" % mesh_name)
+                            mesh = to_2nd_order(mesh, inner_bdy_id, mesh_options['radius'])
                         logger.info("Mesh read in")
 
                         if visualize:

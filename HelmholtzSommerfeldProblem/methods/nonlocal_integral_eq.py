@@ -99,7 +99,9 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     src_bdy_connection = make_face_restriction(actx, meshmode_src_connection.discr, factory, scatterer_bdy_id)
     # source is a qbx layer potential
     from pytential.qbx import QBXLayerPotentialSource
-    qbx = QBXLayerPotentialSource(src_bdy_connection.to_discr, **qbx_kwargs)
+    disable_refinement = (fspace.mesh().geometric_dimension() == 3)
+    qbx = QBXLayerPotentialSource(src_bdy_connection.to_discr, **qbx_kwargs,
+                                  _disable_refinement=disable_refinement)
 
     # get target indices and point-set
     target_indices, target = get_target_points_and_indices(fspace, outer_bdy_id)
