@@ -22,11 +22,15 @@ def make_geo_and_step(geo_code, file_dir, base_file_name):
     Take .geo code, write it to a .geo file and .step file
     Also make .msh files of given element sizes
 
-    If either file already exists, don't make a new one.
+    Calls check_geo. Then,
+    if either file already exists, don't make a new one.
 
     return geo_file_name
     """
     geo_file_name = join(file_dir, base_file_name + '.geo')
+    # Compare to what we have on disk
+    check_geo(geo_code, geo_file_name, file_dir)
+
     step_file_name = join(file_dir, base_file_name + '.step')
     if not isfile(geo_file_name):
         geo_file = open(geo_file_name, 'w')
@@ -54,6 +58,25 @@ def make_msh(geo_file_name, mesh_dim, element_sizes):
             call(command)
         else:
             print("%s already exists." % msh_file_name)
+
+
+def check_geo(geo_code, geo_file_name, mesh_dir):
+    """
+    If geo_code does not match the code in geo_file_name, delete
+    the associated step and msh files.
+    """
+    try:
+        geo_file = open(geo_file_name)
+        geo_code_on_disk = geo_file.read()
+        geo_file.close()
+        if geo_code != geo_code_on_disk:
+            command = ['find', mesh_dir, '-regex',
+                       geo_file_name[:-4] + '.*', '-regextype', 'egrep',
+                       '-delete']
+            print(command)
+            call(command)
+    except (OSError, IOError):
+        pass
 
 
 def make_ball_in_cube(radius,
@@ -95,7 +118,6 @@ Volume(4) = {{4, 5}};
 innerRegion() = BooleanDifference{{Volume{{2}}; Delete;}}{{Volume{{3}}; Delete;}};
 //+ Physical things
 Physical Surface("outerBoxBoundary") = {{outerBoxBoundary()}};
-Physical Surface("innerBoxBoundary") = {{innerBoxBoundary()}};
 Physical Surface("sphereBoundary") = {{sphereBoundary()}};
 //+
 Physical Volume("pmlSpongeRegion") = {{4}};
@@ -115,23 +137,28 @@ Physical Volume("innerRegion") = {{innerRegion()}};
 
 def make_circle_in_square(radius,
                           side_length,
+                          pml_sponge,
                           file_dir,
                           max_refine):
     """
-    Make a circle inside a square, with a 4x4 square
-    inbetween
+    Makes a circle inside a square.
+    If *pml_sponge* is *true*, makes a 4x4 square inbetween.
+
+    Saves
     as a .geo file and .step file in file-dir saved as
 
     file_dir/circle_in_square-rad{rad}-side{side}.geo/step
 
-    Make msh files with refinements from 2**-1 to 2**-max_refine
+    Makes msh files with refinements from 2**-1 to 2**-max_refine
     """
-    if side_length <= 4.0:
-        raise ValueError("Side length must be > 4.0")
-    if radius >= 2.0:
-        raise ValueError("Radius must be < 2.0")
+    if pml_sponge:
+        if side_length <= 4.0:
+            raise ValueError("Side length must be > 4.0")
+        if radius >= 2.0:
+            raise ValueError("Radius must be < 2.0")
 
-    geo_code = """SetFactory("OpenCASCADE");
+        # PML SPONGE CASE
+        geo_code = """SetFactory("OpenCASCADE");
 //+
 Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
 //+
@@ -163,10 +190,32 @@ Physical Surface("pmlSpongeSurface") = {{5}};
 """.format(rad=radius,
            half_side=side_length / 2,
            side=side_length)
+    else:
+        if side_length <= 2 * radius:
+            raise ValueError("Side length must be > 2 * radius")
+        # NO PML SPONGE CASE
+        geo_code = """SetFactory("OpenCASCADE");
+//+
+Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
+//+
+outerRectBoundary() = Boundary{{Surface{{1}};}};
+//+
+Disk(2) = {{0, 0, 0, {rad}, {rad}}};
+//+
+diskBoundary() = Boundary{{Surface{{2}};}};
+//+
+Physical Curve("outerRectBoundary") = {{outerRectBoundary()}};
+Physical Curve("diskBoundary") = {{diskBoundary()}};
+//+ inner region
+BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
+Physical Surface("innerSurface") = {{3}};
+""".format(rad=radius,
+           half_side=side_length / 2,
+           side=side_length)
+
     base_file_name = \
         "circle_in_square-rad{rad}-side{side}".format(
             rad=radius, side=side_length)
-
     geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
     mesh_dim = 2
     element_sizes = [2 ** -i for i in range(1, max_refine+1)]
@@ -240,14 +289,15 @@ BooleanDifference{Volume{2}; Delete;}{Volume{v()}; Delete;}
 if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
-    # circle in square
-    make_circle_in_square(1.0, 4.2, mesh_dir, 6)
-    make_circle_in_square(1.0, 4.5, mesh_dir, 6)
-    make_circle_in_square(1.0, 5.0, mesh_dir, 6)
-    make_circle_in_square(1.0, 5.5, mesh_dir, 6)
-    make_circle_in_square(1.0, 6.0, mesh_dir, 8)
-    make_circle_in_square(1.0, 8.0, mesh_dir, 6)
-    make_circle_in_square(1.0, 12.0, mesh_dir, 6)
+    # circle in square with pml sponge
+    make_circle_in_square(1.0, 6.0, True, mesh_dir, 8)
+    # Make circle in square without pml sponge
+    make_circle_in_square(1.0, 2.25, False, mesh_dir, 6)
+    make_circle_in_square(1.0, 2.5, False, mesh_dir, 6)
+    make_circle_in_square(1.0, 3.0, False, mesh_dir, 6)
+    make_circle_in_square(1.0, 4.0, False, mesh_dir, 6)
+    make_circle_in_square(1.0, 5.0, False, mesh_dir, 6)
+    make_circle_in_square(1.0, 6.0, False, mesh_dir, 6)
     # ball in cube
     make_ball_in_cube(1.0, 6.0, mesh_dir, 4)
     # annulus

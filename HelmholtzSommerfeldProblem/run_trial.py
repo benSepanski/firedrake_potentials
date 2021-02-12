@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pyopencl as cl
 
 from os.path import isfile, join
+from time import sleep
 
 cl_ctx = cl.create_some_context()
 queue = cl.CommandQueue(cl_ctx)
@@ -120,9 +121,6 @@ method_to_kwargs = {
 # Use cache if have it?
 use_cache = True  # pylint: disable=C0103
 
-# Write over duplicate trials?
-write_over_duplicate_trials = False  # pylint: disable=C0103
-
 # Num refinements?
 
 # Visualize solutions?
@@ -163,34 +161,50 @@ except KeyError:
 
 
 # Open cache file to get any previously computed results
-logger.info("Reading cache...")
 cache_file_name = "data/" + mesh_name + '.csv'
-try:
-    in_file = open(cache_file_name)
-    cache_reader = csv.DictReader(in_file)
-    cache = {}
 
-    # Each entry is the set of all input (key, value) pairs
-    # and all output (key, value) pairs, so separate those
-    # into input_ and output
-    for i, entry in enumerate(cache_reader):
+def read_cache():
+    """
+    Read cache from the cache file.
+    Returns the cacche
+    """
+    # If no cache file, return empty dict
+    if not isfile(cache_file_name):
+        return {}
+    # Repeatedly try to open and write to the cache file
+    while True:
+        try:
+            in_file = open(cache_file_name)
+            cache_reader = csv.DictReader(in_file)
+            cache = {}
 
-        output = {}
-        input_ = dict(entry)
-        for output_name in ['L2 Error', 'H1 Error', 'ndofs',
-                            'L2 True Norm', 'H1 True Norm',
-                            'Iteration Number', 'Residual Norm',
-                            'Converged Reason',
-                            'Min Extreme Singular Value',
-                            'Max Extreme Singular Value']:
-            output[output_name] = entry[output_name]
-            del input_[output_name]
-        # Cache maps input (k, v) -> output (k, v)
-        cache[frozenset(input_.items())] = output
+            # Each entry is the set of all input (key, value) pairs
+            # and all output (key, value) pairs, so separate those
+            # into input_ and output
+            for i, entry in enumerate(cache_reader):
 
-    in_file.close()
-except (OSError, IOError):
-    cache = {}
+                output = {}
+                input_ = dict(entry)
+                for output_name in ['L2 Error', 'H1 Error', 'ndofs',
+                                    'L2 True Norm', 'H1 True Norm',
+                                    'Iteration Number', 'Residual Norm',
+                                    'Converged Reason',
+                                    'Min Extreme Singular Value',
+                                    'Max Extreme Singular Value']:
+                    output[output_name] = entry[output_name]
+                    del input_[output_name]
+                # Cache maps input (k, v) -> output (k, v)
+                cache[frozenset(input_.items())] = output
+
+            in_file.close()
+            return cache
+
+        except (OSError, IOError):
+            sleep(1)
+
+
+logger.info("Reading cache...")
+cache = read_cache()
 logger.info("Cache read in")
 
 mesh_dim = None  # pylint: disable=C0103
@@ -452,10 +466,6 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                 # Gets computed solution, prints and caches
                 key = frozenset(setup_info.items())
 
-                if not use_cache and key in cache and not write_over_duplicate_trials:
-                    raise ValueError('Duplicating trial, maybe set'
-                                     ' write_over_duplicate_trials to *True*?')
-
                 new_result = not use_cache or key not in cache
                 if new_result:
                     # Build mesh if not done so already
@@ -581,6 +591,20 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                 if new_result:
                     logger.info("Writing to cache...")
 
+                    ### TRY TO KEEP CACHE ERRORS LOW. MULTIPLE PROCESSES
+                    ### CAN RUN AT THE SAME TIME, BUT IT IS POSSIBLE THAT
+                    ### THIS WILL RESULT IN SOME DATA BEING LOST.
+
+                    # read cache off disk
+                    cache_on_disk = read_cache()
+
+                    # Update our cache if it's missing anything
+                    for key in cache_on_disk:
+                        if key not in cache:
+                            cache[key] = cache_on_disk[key]
+
+                    # Write our cache to disk.
+                    #
                     # First write to a temp file, that way
                     # if we hit I/O errors we don't lose a bunch of data
                     for out_file_name in [cache_file_name + '.swp', cache_file_name]:
