@@ -47,15 +47,20 @@ mesh_options = {
         'num_refinements': 6,
     # mesh-specific options
     'mesh_options': {
+        'circle_in_square_no_pml': {
+            'radius': 1.0,
+             # This can be a list of floats or just one float
+            'outer_side_length': 6.0,
+        },
         'circle_in_square': {
             'radius': 1.0,
              # This can be a list of floats or just one float
-            'cutoff_size': 1.0,
+            'outer_side_length': 6.0,
         },
         'ball_in_cube': {
             'radius': 1.0,
              # This can be a list of floats or just one float
-            'cutoff_size': 1.0,
+            'outer_side_length': 6.0,
         },
         'annulus': {
             'inner_radius': 1.0,
@@ -208,7 +213,7 @@ cache = read_cache()
 logger.info("Cache read in")
 
 mesh_dim = None  # pylint: disable=C0103
-if mesh_name in ['annulus', 'circle_in_square']:
+if mesh_name in ['annulus', 'circle_in_square', 'circle_in_square_no_pml']:
     mesh_dim = 2  # pylint: disable=C0103
     hankel_cutoff = 80  # pylint: disable=C0103
 
@@ -217,17 +222,33 @@ if mesh_name in ['annulus', 'circle_in_square']:
         outer_bdy_id = 1
         non_sponge_region = 4
         pml_min = [2, 2]
-        pml_max = None  # Set during iteration based on cutoff size 
-        # if only one cutoff size given, convert to iterable
-        if not isinstance(mesh_options['cutoff_size'], list):
-            mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
-        for cutoff_size in mesh_options['cutoff_size']:
-            if not isinstance(cutoff_size, float):
-                raise TypeError("Each cutoff size must be a float")
+        pml_max = None  # Set during iteration based on outer side length
+        # if only one outer side length given, convert to iterable
+        if not isinstance(mesh_options['outer_side_length'], list):
+            mesh_options['outer_side_length'] = [mesh_options['outer_side_length']]
+        for outer_side_length in mesh_options['outer_side_length']:
+            if not isinstance(outer_side_length, float):
+                raise TypeError("Each outer side length must be a float")
         mesh_file_names = ["circle_in_square-rad{rad}-side{side}"
-                           .format(rad=mesh_options['radius'],
-                                   side=2 * (2 + cutoff))
-                           for cutoff in mesh_options['cutoff_size']]
+                           .format(rad=mesh_options['radius'], side=side)
+                           for side in mesh_options['outer_side_length']]
+    elif mesh_name == 'circle_in_square_no_pml':
+        inner_bdy_id = 2  # pylint: disable=C0103
+        outer_bdy_id = 1
+        non_sponge_region = 4
+        if 'pml' in method_list:
+            raise ValueError("pml not supported on 'circle_in_square_no_pml' mesh")
+        pml_min = None
+        pml_max = None  # Set during iteration based on outer side
+        # if only one outer side length given, convert to iterable
+        if not isinstance(mesh_options['outer_side_length'], list):
+            mesh_options['outer_side_length'] = [mesh_options['outer_side_length']]
+        for outer_side_length in mesh_options['outer_side_length']:
+            if not isinstance(outer_side_length, float):
+                raise TypeError("Each outer_side_length must be a float")
+        mesh_file_names = ["circle_in_square_no_pml-rad{rad}-side{side}"
+                           .format(rad=mesh_options['radius'], side=side)
+                           for side in mesh_options['outer_side_length']]
     elif mesh_name == 'annulus':
         inner_bdy_id = 2  # pylint: disable=C0103
         outer_bdy_id = 1  # pylint: disable=C0103
@@ -252,17 +273,16 @@ elif mesh_name in ['ball_in_cube', 'betterplane']:
         outer_bdy_id = 1
         non_sponge_region = 5
         pml_min = [2, 2, 2]
-        pml_max = None  # Set during iteration based on cutoff size 
-        # if only one cutoff size given, convert to iterable
-        if not isinstance(mesh_options['cutoff_size'], list):
-            mesh_options['cutoff_size'] = [mesh_options['cutoff_size']]
-        for cutoff_size in mesh_options['cutoff_size']:
-            if not isinstance(cutoff_size, float):
-                raise TypeError("Each cutoff size must be a float")
+        pml_max = None  # Set during iteration based on outer_side_length
+        # if only one outer_side_length given, convert to iterable
+        if not isinstance(mesh_options['outer_side_length'], list):
+            mesh_options['outer_side_length'] = [mesh_options['outer_side_length']]
+        for outer_side_length in mesh_options['outer_side_length']:
+            if not isinstance(outer_side_length, float):
+                raise TypeError("Each outer_side_length must be a float")
         mesh_file_names = ["ball_in_cube-rad{rad}-side{side}"
-                           .format(rad=mesh_options['radius'],
-                                   side=2 * (2 + cutoff))
-                           for cutoff in mesh_options['cutoff_size']]
+                           .format(rad=mesh_options['radius'], side=side)
+                           for side in mesh_options['outer_side_length']]
 
     elif mesh_name == 'betterplane':
         inner_bdy_id = list(range(7, 32))  # pylint: disable=C0103
@@ -326,17 +346,17 @@ for mkey in method_to_kwargs:
 
 order = 2 if np.any(np.array(degree_list) > 1) else 1  # pylint: disable=C0103
 
-# may have multiple mesh files if multiple cutoff sizes
+# may have multiple mesh files if multiple outer_side_lengths
 current_mesh_file_name = []
 cell_sizes = []
-cutoff_sizes = []
+outer_side_lengths = []
 for i, mesh_file_name in enumerate(mesh_file_names):
     cell_sizes += [element_size * 2**-i for i in range(num_refinements+1)]
     current_mesh_file_name += [mesh_file_name + "-h%.5e.msh" % cell_size for cell_size in cell_sizes[-num_refinements-1:]]
-    cutoff_size = ''
-    if 'cutoff_size' in mesh_options:
-        cutoff_size = mesh_options['cutoff_size'][i]
-    cutoff_sizes += [cutoff_size for _ in range(num_refinements + 1)]
+    outer_side_length = ''
+    if 'outer_side_length' in mesh_options:
+        outer_side_length = mesh_options['outer_side_length'][i]
+    outer_side_lengths += [outer_side_length for _ in range(num_refinements + 1)]
 
 # Verify mesh names exist
 for  mesh_file_name in current_mesh_file_name:
@@ -368,7 +388,7 @@ iteration = 0  # pylint: disable=C0103
 total_iter = len(current_mesh_file_name) * len(degree_list) * \
              len(kappa_list) * len(method_list)
 
-field_names = ('Mesh Order', 'Cutoff Size',
+field_names = ('Mesh Order', 'Outer Side Length',
                'h', 'degree', 'kappa', 'method',
                'pc_type', 'pc_side', 'FMM Order', 'ndofs',
                'L2 Error', 'H1 Error', 'L2 True Norm',
@@ -379,18 +399,18 @@ field_names = ('Mesh Order', 'Cutoff Size',
                'pyamg_maxiter', 'pyamg_tol')
 
 setup_info = {'Mesh Order': str(order)}
-if mesh_name in ['circle_in_square', 'ball_in_cube']:
-    setup_info['Cutoff Size'] = str(mesh_options['cutoff_size'])
+if mesh_name in ['circle_in_square', 'circle_in_square_no_pml', 'ball_in_cube']:
+    setup_info['Outer Side Length'] = str(mesh_options['outer_side_length'])
 else:
-    setup_info['Cutoff Size'] = str('')
+    setup_info['Outer Side Length'] = str('')
 
-for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
-                                                  cell_sizes,
-                                                  cutoff_sizes):
+for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
+                                                        cell_sizes,
+                                                        outer_side_lengths):
     setup_info['h'] = str(cell_size)
-    setup_info['Cutoff Size'] = str(cutoff_size)
-    if(cutoff_size != '' and 'pml' in method_to_kwargs):
-        method_to_kwargs['pml']['pml_max'] = [2 + cutoff_size for _ in range(mesh_dim)]
+    setup_info['Outer Side Length'] = str(outer_side_length)
+    if(outer_side_length != '' and 'pml' in method_to_kwargs):
+        method_to_kwargs['pml']['pml_max'] = [outer_side_length / 2 for _ in range(mesh_dim)]
 
     mesh = None
 

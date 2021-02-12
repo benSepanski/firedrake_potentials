@@ -135,14 +135,53 @@ Physical Volume("innerRegion") = {{innerRegion()}};
     make_msh(geo_file_name, mesh_dim, element_sizes)
 
 
+def make_circle_in_square_no_pml(radius, side_length, file_dir, max_refine):
+    """
+    Makes a circle inside a square
+
+    Saves
+    as a .geo file and .step file in file-dir saved as
+
+    file_dir/circle_in_square_no_pml-rad{rad}-side{side}.geo/step
+
+    Makes msh files with refinements from 2**-1 to 2**-max_refine
+    """
+    if side_length <= 2 * radius:
+        raise ValueError("Side length must be > 2 * radius")
+    # NO PML SPONGE CASE
+    geo_code = """SetFactory("OpenCASCADE");
+//+
+Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
+//+
+outerRectBoundary() = Boundary{{Surface{{1}};}};
+//+
+Disk(2) = {{0, 0, 0, {rad}, {rad}}};
+//+
+diskBoundary() = Boundary{{Surface{{2}};}};
+//+
+Physical Curve("outerRectBoundary") = {{outerRectBoundary()}};
+Physical Curve("diskBoundary") = {{diskBoundary()}};
+//+ inner region
+BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
+Physical Surface("innerSurface") = {{3}};
+""".format(rad=radius,
+           half_side=side_length / 2,
+           side=side_length)
+    base_file_name = \
+        "circle_in_square_no_pml-rad{rad}-side{side}".format(
+            rad=radius, side=side_length)
+    geo_file_name = make_geo_and_step(geo_code, file_dir, base_file_name)
+    mesh_dim = 2
+    element_sizes = [2 ** -i for i in range(1, max_refine+1)]
+    make_msh(geo_file_name, mesh_dim, element_sizes)
+
+
 def make_circle_in_square(radius,
                           side_length,
-                          pml_sponge,
                           file_dir,
                           max_refine):
     """
-    Makes a circle inside a square.
-    If *pml_sponge* is *true*, makes a 4x4 square inbetween.
+    Makes a circle inside a square with a 4x4 square inbetween.
 
     Saves
     as a .geo file and .step file in file-dir saved as
@@ -151,14 +190,13 @@ def make_circle_in_square(radius,
 
     Makes msh files with refinements from 2**-1 to 2**-max_refine
     """
-    if pml_sponge:
-        if side_length <= 4.0:
-            raise ValueError("Side length must be > 4.0")
-        if radius >= 2.0:
-            raise ValueError("Radius must be < 2.0")
+    if side_length <= 4.0:
+        raise ValueError("Side length must be > 4.0")
+    if radius >= 2.0:
+        raise ValueError("Radius must be < 2.0")
 
-        # PML SPONGE CASE
-        geo_code = """SetFactory("OpenCASCADE");
+    # PML SPONGE CASE
+    geo_code = """SetFactory("OpenCASCADE");
 //+
 Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
 //+
@@ -188,30 +226,8 @@ Physical Surface("innerSurface") = {{4}};
 Plane Surface(5) = {{4, 5}};
 Physical Surface("pmlSpongeSurface") = {{5}};
 """.format(rad=radius,
-           half_side=side_length / 2,
-           side=side_length)
-    else:
-        if side_length <= 2 * radius:
-            raise ValueError("Side length must be > 2 * radius")
-        # NO PML SPONGE CASE
-        geo_code = """SetFactory("OpenCASCADE");
-//+
-Rectangle(1) = {{-{half_side}, -{half_side}, 0, {side}, {side}}};
-//+
-outerRectBoundary() = Boundary{{Surface{{1}};}};
-//+
-Disk(2) = {{0, 0, 0, {rad}, {rad}}};
-//+
-diskBoundary() = Boundary{{Surface{{2}};}};
-//+
-Physical Curve("outerRectBoundary") = {{outerRectBoundary()}};
-Physical Curve("diskBoundary") = {{diskBoundary()}};
-//+ inner region
-BooleanDifference(3) = {{Surface{{1}}; Delete;}}{{Surface{{2}}; Delete;}};
-Physical Surface("innerSurface") = {{3}};
-""".format(rad=radius,
-           half_side=side_length / 2,
-           side=side_length)
+       half_side=side_length / 2,
+       side=side_length)
 
     base_file_name = \
         "circle_in_square-rad{rad}-side{side}".format(
@@ -290,14 +306,14 @@ if __name__ == "__main__":
     mesh_dir = join(abspath(dirname(__file__)),
                     '../HelmholtzSommerfeldProblem/meshes/')
     # circle in square with pml sponge
-    make_circle_in_square(1.0, 6.0, True, mesh_dir, 8)
+    make_circle_in_square(1.0, 6.0, mesh_dir, 8)
     # Make circle in square without pml sponge
-    make_circle_in_square(1.0, 2.25, False, mesh_dir, 6)
-    make_circle_in_square(1.0, 2.5, False, mesh_dir, 6)
-    make_circle_in_square(1.0, 3.0, False, mesh_dir, 6)
-    make_circle_in_square(1.0, 4.0, False, mesh_dir, 6)
-    make_circle_in_square(1.0, 5.0, False, mesh_dir, 6)
-    make_circle_in_square(1.0, 6.0, False, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 2.25, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 2.5, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 3.0, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 4.0, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 5.0, mesh_dir, 6)
+    make_circle_in_square_no_pml(1.0, 6.0, mesh_dir, 6)
     # ball in cube
     make_ball_in_cube(1.0, 6.0, mesh_dir, 4)
     # annulus
