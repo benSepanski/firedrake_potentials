@@ -161,6 +161,7 @@ except KeyError:
                        mesh_name=mesh_name,
                        meshes=mesh_options['mesh_options'].keys()))
 
+
 # Open cache file to get any previously computed results
 logger.info("Reading cache...")
 cache_file_name = "data/" + mesh_name + '.csv'
@@ -191,11 +192,6 @@ try:
 except (OSError, IOError):
     cache = {}
 logger.info("Cache read in")
-
-uncached_results = {}
-
-if write_over_duplicate_trials:
-    uncached_results = cache
 
 mesh_dim = None  # pylint: disable=C0103
 if mesh_name in ['annulus', 'circle_in_square']:
@@ -456,7 +452,12 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                 # Gets computed solution, prints and caches
                 key = frozenset(setup_info.items())
 
-                if not use_cache or key not in cache:
+                if not use_cache and key in cache and not write_over_duplicate_trials:
+                    raise ValueError('Duplicating trial, maybe set'
+                                     ' write_over_duplicate_trials to *True*?')
+
+                new_result = not use_cache or key not in cache
+                if new_result:
                     # Build mesh if not done so already
                     if mesh is None:
                         logger.info("Reading Mesh with element size %s " +
@@ -508,7 +509,7 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                         raise ValueError("snes_or_ksp must be of type"
                                          "PETSc.SNES or PETSc.KSP")
 
-                    uncached_results[key] = {}
+                    cache[key] = {}
 
                     diff = true_sol - comp_sol
                     l2_err = abs(l2_norm(diff, region=non_sponge_region))
@@ -516,21 +517,21 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                     l2_true_norm = abs(l2_norm(true_sol, region=non_sponge_region))
                     h1_true_norm = abs(h1_norm(true_sol, region=non_sponge_region))
 
-                    uncached_results[key]['L2 Error'] = l2_err
-                    uncached_results[key]['H1 Error'] = h1_err
-                    uncached_results[key]['L2 True Norm'] = l2_true_norm
-                    uncached_results[key]['H1 True Norm'] = h1_true_norm
+                    cache[key]['L2 Error'] = l2_err
+                    cache[key]['H1 Error'] = h1_err
+                    cache[key]['L2 True Norm'] = l2_true_norm
+                    cache[key]['H1 True Norm'] = h1_true_norm
 
                     ndofs = true_sol.dat.data.shape[0]
-                    uncached_results[key]['ndofs'] = str(ndofs)
+                    cache[key]['ndofs'] = str(ndofs)
                     # Grab iteration number if not preonly
                     if solver_params['ksp_type'] != 'preonly':
-                        uncached_results[key]['Iteration Number'] = \
+                        cache[key]['Iteration Number'] = \
                             ksp.getIterationNumber()
                     # Get residual norm and converged reason
-                    uncached_results[key]['Residual Norm'] = \
+                    cache[key]['Residual Norm'] = \
                         ksp.getResidualNorm()
-                    uncached_results[key]['Converged Reason'] = \
+                    cache[key]['Converged Reason'] = \
                         KSPReasons[ksp.getConvergedReason()]
 
                     # If using gmres, estimate extreme singular values
@@ -541,10 +542,8 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                     if solver_params['ksp_type'] == 'gmres' and \
                             compute_sing_val_params & solver_params.keys():
                         emax, emin = ksp.computeExtremeSingularValues()
-                        uncached_results[key]['Min Extreme Singular Value'] = \
-                            emin
-                        uncached_results[key]['Max Extreme Singular Value'] = \
-                            emax
+                        cache[key]['Min Extreme Singular Value'] = emin
+                        cache[key]['Max Extreme Singular Value'] = emax
 
                     if visualize:
                         try:
@@ -579,46 +578,28 @@ for mesh_file_name, cell_size, cutoff_size in zip(current_mesh_file_name,
                 print()
 
                 # write to cache if necessary (after every computation)
-                if uncached_results:
+                if new_result:
                     logger.info("Writing to cache...")
 
-                    out_file = open(cache_file_name, 'w')
+                    # First write to a temp file, that way
+                    # if we hit I/O errors we don't lose a bunch of data
+                    for out_file_name in [cache_file_name + '.swp', cache_file_name]:
+                        out_file = open(out_file_name, 'w')
 
-                    cache_writer = csv.DictWriter(out_file, field_names)
-                    cache_writer.writeheader()
+                        cache_writer = csv.DictWriter(out_file, field_names)
+                        cache_writer.writeheader()
 
-                    # {{{ Move data to cache dictionary and append to file
-                    #     if not writing over duplicates
-                    for key in uncached_results:
-                        if key in cache and not write_over_duplicate_trials:
-                            out_file.close()
-                            raise ValueError('Duplicating trial, maybe set'
-                                             ' write_over_duplicate_trials to *True*?')
+                        # {{{ Re-write all data
 
-                        row = dict(key)
-                        for output in uncached_results[key]:
-                            row[output] = uncached_results[key][output]
-
-                        if not write_over_duplicate_trials:
-                            cache_writer.writerow(row)
-                        cache[key] = uncached_results[key]
-
-                    uncached_results = {}
-
-                    # }}}
-
-                    # {{{ Re-write all data if writing over duplicates
-
-                    if write_over_duplicate_trials:
                         for key in cache:
                             row = dict(key)
                             for output in cache[key]:
                                 row[output] = cache[key][output]
                             cache_writer.writerow(row)
 
-                    # }}}
+                        # }}}
 
-                    out_file.close()
+                        out_file.close()
 
                     logger.info("cache closed")
     del mesh
