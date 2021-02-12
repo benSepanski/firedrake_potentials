@@ -40,17 +40,17 @@ logger.setLevel(level=logging.INFO)
 
 mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
-        'mesh_name': 'circle_in_square',
+        'mesh_name': 'circle_in_square_no_pml',
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 6,
+        'num_refinements': 5,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square_no_pml': {
             'radius': 1.0,
              # This can be a list of floats or just one float
-            'outer_side_length': 6.0,
+            'outer_side_length': [2.25, 2.5, 3.0, 4.0, 5.0, 6.0],
         },
         'circle_in_square': {
             'radius': 1.0,
@@ -71,10 +71,10 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-#degree_list = [1]
-degree_list = [2, 3, 4]
+degree_list = [1]
+#degree_list = [2, 3, 4]
 #degree_list = [4]
-method_list = ['transmission', 'pml', 'nonlocal']
+method_list = ['transmission', 'nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -141,7 +141,7 @@ def get_fmm_order(kappa, h):
     """
     from math import log
     # FMM order to get tol accuracy
-    tol = 1e-11
+    tol = 1e-7
     global c
     if mesh_dim == 2:
         c = 0.5  # pylint: disable=C0103
@@ -235,7 +235,7 @@ if mesh_name in ['annulus', 'circle_in_square', 'circle_in_square_no_pml']:
     elif mesh_name == 'circle_in_square_no_pml':
         inner_bdy_id = 2  # pylint: disable=C0103
         outer_bdy_id = 1
-        non_sponge_region = 4
+        non_sponge_region = 3
         if 'pml' in method_list:
             raise ValueError("pml not supported on 'circle_in_square_no_pml' mesh")
         pml_min = None
@@ -329,7 +329,7 @@ global_kwargs = {'scatterer_bdy_id': inner_bdy_id,
                  'solver_parameters': {'snes_type': 'ksponly',
                                        'ksp_type': 'gmres',
                                        'ksp_gmres_restart': 30,
-                                       'ksp_rtol': 1.0e-11,
+                                       'ksp_rtol': 1.0e-7,
                                        'ksp_atol': 1.0e-50,
                                        'ksp_divtol': 1e4,
                                        'ksp_max_it': 10000,
@@ -498,10 +498,10 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                         # for order 2 meshes
                         mesh = Mesh(join('meshes/', mesh_file_name))
                         if order == 2:
-                            if mesh_name not in ['circle_in_square', 'ball_in_cube']:
+                            if mesh_name not in ['circle_in_square', 'ball_in_cube', 'circle_in_square_no_pml']:
                                 raise NotImplementedError("2nd order mesh only avaiilbale" +
-                                        " for circle_in_square or ball_in_cube. Not available for " +
-                                        "'%s'" % mesh_name)
+                                        " for circle_in_square, circle_in_square_no_pml, or ball_in_cube. " +
+                                        " Not available for '%s'" % mesh_name)
                             mesh = to_2nd_order(mesh, inner_bdy_id, mesh_options['radius'])
                         logger.info("Mesh read in")
 
@@ -602,6 +602,8 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                         c = 0.75  # pylint: disable=C0103
                     print('Epsilon= %.2f^(%d+1) = %e'
                           % (c, fmm_order, c**(fmm_order+1)))
+                if len(outer_side_lengths) > 1:
+                    print("Outer Side Length:", outer_side_length)
 
                 print("L2 Err: ", l2_err)
                 print("H1 Err: ", h1_err)
