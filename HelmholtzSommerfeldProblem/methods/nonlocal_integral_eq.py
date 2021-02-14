@@ -61,7 +61,7 @@ def get_target_points_and_indices(fspace, boundary_ids):
 def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                          options_prefix=None, solver_parameters=None,
                          fspace=None, vfspace=None,
-                         true_sol_grad=None,
+                         true_sol_grad_expr=None,
                          actx=None,
                          dgfspace=None,
                          dgvfspace=None,
@@ -318,7 +318,10 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
     rhs_op = bind((qbx, target), op)
 
     # Transfer to meshmode
-    true_sol_grad_mm = meshmode_src_connection.from_firedrake(project(true_sol_grad, dgvfspace), actx=actx)
+    metadata = {'quadrature_degree': 2 * fspace.ufl_element().degree()}
+    dg_true_sol_grad = project(true_sol_grad_expr, dgvfspace,
+                               form_compiler_parameters=metadata)
+    true_sol_grad_mm = meshmode_src_connection.from_firedrake(dg_true_sol_grad, actx=actx)
     true_sol_grad_mm = src_bdy_connection(true_sol_grad_mm)
     # Apply the operations
     f_grad_convoluted_mm = rhs_grad_op(actx, sigma=true_sol_grad_mm, k=wave_number)
@@ -350,8 +353,8 @@ def nonlocal_integral_eq(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
             ), v
         \rangle_\Sigma
     """
-    rhs_form = inner(inner(true_sol_grad, FacetNormal(mesh)),
-                     v) * ds(scatterer_bdy_id) \
+    rhs_form = inner(inner(true_sol_grad_expr, FacetNormal(mesh)),
+                     v) * ds(scatterer_bdy_id, metadata=metadata) \
         + inner(f_convoluted, v) * ds(outer_bdy_id) \
         - inner(inner(f_grad_convoluted, FacetNormal(mesh)),
                 v) * ds(outer_bdy_id)

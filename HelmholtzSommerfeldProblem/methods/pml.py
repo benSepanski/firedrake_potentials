@@ -7,7 +7,7 @@ from firedrake import Constant, SpatialCoordinate, as_tensor, \
 
 def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         options_prefix=None, solver_parameters=None,
-        fspace=None, tfspace=None, true_sol_grad=None,
+        fspace=None, tfspace=None, true_sol_grad_expr=None,
         pml_type=None, quad_const=None, speed=None,
         pml_min=None, pml_max=None):
     """
@@ -90,7 +90,8 @@ def pml(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
          ) * dx
 
     n = FacetNormal(mesh)
-    L = inner(dot(true_sol_grad, n), q) * ds(scatterer_bdy_id)
+    metadata = {'quadrature_degree': 2 * fspace.ufl_element().degree()}
+    L = inner(dot(true_sol_grad_expr, n), q) * ds(scatterer_bdy_id, metadata=metadata)
 
     bc = DirichletBC(fspace, Constant(0), outer_bdy_id)
 

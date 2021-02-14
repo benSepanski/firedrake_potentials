@@ -8,7 +8,7 @@ from .preconditioners.two_D_helmholtz import AMGTransmissionPreconditioner
 
 def transmission(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
                  options_prefix=None, solver_parameters=None,
-                 fspace=None, true_sol_grad=None,
+                 fspace=None, true_sol_grad_expr=None,
                  ):
     r"""
         preconditioner_gamma and preconditioner_lambda are used to precondition
@@ -28,7 +28,8 @@ def transmission(mesh, scatterer_bdy_id, outer_bdy_id, wave_number,
         - Constant(1j * wave_number) * inner(u, v) * ds(outer_bdy_id)
 
     n = FacetNormal(mesh)
-    L = inner(inner(true_sol_grad, n), v) * ds(scatterer_bdy_id)
+    metadata = {'quadrature_degree': 2 * fspace.ufl_element().degree()}
+    L = inner(inner(true_sol_grad_expr, n), v) * ds(scatterer_bdy_id, metadata=metadata)
 
     solution = Function(fspace)
 

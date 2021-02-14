@@ -46,13 +46,9 @@ def prepare_trial(trial, true_sol_name):
         vect_function_space = VectorFunctionSpace(mesh, 'CG', degree)
 
         true_sol_expr = trial['true_sol_expr']
-        true_solution = Function(function_space, name=true_sol_name).interpolate(
-            true_sol_expr)
-        true_solution_grad = Function(vect_function_space).interpolate(
-            grad(true_sol_expr))
-
+        true_sol = Function(function_space).interpolate(true_sol_expr)
         prepared_trials[tuple_trial] = (mesh, function_space, vect_function_space,
-                                        true_solution, true_solution_grad)
+                                        true_sol, grad(true_sol_expr))
 
     return prepared_trials[tuple_trial]
 
@@ -95,7 +91,7 @@ def run_method(trial, method, wave_number,
 
     # Get prepared trial args in kwargs
     prepared_trial = prepare_trial(trial, true_sol_name)
-    mesh, fspace, vfspace, true_sol, true_sol_grad = prepared_trial
+    mesh, fspace, vfspace, true_sol, true_sol_grad_expr = prepared_trial
 
     # Create a place to memoize any objects if necessary
     tuple_trial = trial_to_tuple(trial)
@@ -127,7 +123,7 @@ def run_method(trial, method, wave_number,
                              options_prefix=options_prefix,
                              solver_parameters=solver_parameters,
                              fspace=fspace, tfspace=tfspace,
-                             true_sol_grad=true_sol_grad,
+                             true_sol_grad_expr=true_sol_grad_expr,
                              pml_type=pml_type, quad_const=quad_const,
                              speed=speed,
                              pml_min=pml_min,
@@ -185,8 +181,8 @@ def run_method(trial, method, wave_number,
                 raise TypeError("fmm_tol of type '%s' is not of type float" % type(fmm_tol))
             if fmm_tol <= 0.0:
                 raise ValueError("fmm_tol of '%s' is less than or equal to 0.0" % fmm_tol)
-            from sumpy.expansion.level_to_order import FMMLibExpansionOrderFinder
-            fmm_level_to_order = FMMLibExpansionOrderFinder(fmm_tol)
+            from sumpy.expansion.level_to_order import SimpleExpansionOrderFinder 
+            fmm_level_to_order = SimpleExpansionOrderFinder(fmm_tol)
         # Otherwise, make sure we got a valid fmm_order
         else:
             if not isinstance(fmm_order, int):
@@ -208,7 +204,7 @@ def run_method(trial, method, wave_number,
             options_prefix=options_prefix,
             solver_parameters=solver_parameters,
             fspace=fspace, vfspace=vfspace,
-            true_sol_grad=true_sol_grad,
+            true_sol_grad_expr=true_sol_grad_expr,
             actx=actx,
             dgfspace=dgfspace,
             dgvfspace=dgvfspace,
@@ -225,7 +221,7 @@ def run_method(trial, method, wave_number,
                                       options_prefix=options_prefix,
                                       solver_parameters=solver_parameters,
                                       fspace=fspace,
-                                      true_sol_grad=true_sol_grad,
+                                      true_sol_grad_expr=true_sol_grad_expr,
                                       )
         snes_or_ksp = snes
     else:

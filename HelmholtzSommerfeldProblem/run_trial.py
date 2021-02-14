@@ -125,7 +125,7 @@ method_to_kwargs = {
 """
 
 # Use cache if have it?
-use_cache = True  # pylint: disable=C0103
+use_cache = False  # pylint: disable=C0103
 
 # Num refinements?
 
@@ -146,16 +146,16 @@ def get_fmm_order_or_tol(kappa, h):
     from math import log
     # FMM order to get tol accuracy
     fmm_order_and_tol = {}
-    tol = 1e-20
+    fmm_tol = 1e-31
     global c
     if mesh_dim == 2:
         c = 0.5  # pylint: disable=C0103
     elif mesh_dim == 3:
         c = 0.75  # pylint: disable=C0103
-    fmm_order = int(log(tol, c)) - 1
+    fmm_order = int(log(fmm_tol, c)) - 1
 
     # Exactly one of these must be None
-    return {'fmm_order': None, 'fmm_tol': tol}
+    return {'fmm_order': None, 'fmm_tol': fmm_tol}
 
 # }}}
 
@@ -460,7 +460,7 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                     fmm_tol = fmm_order_or_tol['fmm_tol']
                     # Store fmm order/fmm tol in setup info
                     setup_info['FMM Order'] = '' if fmm_order is None else str(fmm_order)
-                    setup_info['FMM Tol'] = '' if fmm_order is None else str(fmm_tol)
+                    setup_info['FMM Tol'] = '' if fmm_tol is None else str(fmm_tol)
                     # Put fmm order/tol into kwargs for the method
                     method_to_kwargs[method]['FMM Order'] = fmm_order
                     method_to_kwargs[method]['FMM Tol'] = fmm_tol 
