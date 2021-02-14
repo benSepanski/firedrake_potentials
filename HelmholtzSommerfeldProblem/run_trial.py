@@ -40,11 +40,11 @@ logger.setLevel(level=logging.INFO)
 
 mesh_options = {
         # Must be one of the keys of mesh_options['mesh_options']
-        'mesh_name': 'circle_in_square_no_pml',
+        'mesh_name': 'circle_in_square',
         # clmax of coarsest mesh
         'element_size': 2**-1,
         # number of refinements
-        'num_refinements': 5,
+        'num_refinements': 6,
     # mesh-specific options
     'mesh_options': {
         'circle_in_square_no_pml': {
@@ -71,10 +71,11 @@ mesh_options = {
 }
 
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [1]
-#degree_list = [2, 3, 4]
-#degree_list = [4]
-method_list = ['transmission', 'nonlocal']
+#degree_list = [1]
+#degree_list = [2, 3]
+degree_list = [4]
+method_list = ['transmission', 'nonlocal', 'pml']
+#method_list = ['nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -132,22 +133,29 @@ use_cache = True  # pylint: disable=C0103
 visualize = False  # pylint: disable=C0103
 
 
-def get_fmm_order(kappa, h):
+def get_fmm_order_or_tol(kappa, h):
     """
-    Set the fmm order for each (kappa, h) pair
+    Set the fmm order or tol for each (kappa, h) pair
 
     :arg kappa: The wave number
     :arg h: The maximum characteristic length of the mesh
+    :return: A dict d with keys 'fmm_order' and 'fmm_tol'.
+             Exactly one of d['fmm_order'] or d['fmm_tol']
+             is *None*
     """
     from math import log
     # FMM order to get tol accuracy
-    tol = 1e-7
+    fmm_order_and_tol = {}
+    tol = 1e-20
     global c
     if mesh_dim == 2:
         c = 0.5  # pylint: disable=C0103
     elif mesh_dim == 3:
         c = 0.75  # pylint: disable=C0103
-    return int(log(tol, c)) - 1
+    fmm_order = int(log(tol, c)) - 1
+
+    # Exactly one of these must be None
+    return {'fmm_order': None, 'fmm_tol': tol}
 
 # }}}
 
@@ -329,7 +337,7 @@ global_kwargs = {'scatterer_bdy_id': inner_bdy_id,
                  'solver_parameters': {'snes_type': 'ksponly',
                                        'ksp_type': 'gmres',
                                        'ksp_gmres_restart': 30,
-                                       'ksp_rtol': 1.0e-7,
+                                       'ksp_rtol': 1.0e-12,
                                        'ksp_atol': 1.0e-50,
                                        'ksp_divtol': 1e4,
                                        'ksp_max_it': 10000,
@@ -390,7 +398,7 @@ total_iter = len(current_mesh_file_name) * len(degree_list) * \
 
 field_names = ('Mesh Order', 'Outer Side Length',
                'h', 'degree', 'kappa', 'method',
-               'pc_type', 'pc_side', 'FMM Order', 'ndofs',
+               'pc_type', 'pc_side', 'FMM Order', 'FMM Tol', 'ndofs',
                'L2 Error', 'H1 Error', 'L2 True Norm',
                'H1 True Norm', 'Iteration Number',
                'gamma', 'beta', 'ksp_type',
@@ -446,11 +454,19 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                     setup_info['ksp_atol'] = str(solver_params['ksp_atol'])
 
                 if method == 'nonlocal':
-                    fmm_order = get_fmm_order(kappa, cell_size)
-                    setup_info['FMM Order'] = str(fmm_order)
+                    # Get fmm order or fmm tol
+                    fmm_order_or_tol = get_fmm_order_or_tol(kappa, cell_size)
+                    fmm_order = fmm_order_or_tol['fmm_order']
+                    fmm_tol = fmm_order_or_tol['fmm_tol']
+                    # Store fmm order/fmm tol in setup info
+                    setup_info['FMM Order'] = '' if fmm_order is None else str(fmm_order)
+                    setup_info['FMM Tol'] = '' if fmm_order is None else str(fmm_tol)
+                    # Put fmm order/tol into kwargs for the method
                     method_to_kwargs[method]['FMM Order'] = fmm_order
+                    method_to_kwargs[method]['FMM Tol'] = fmm_tol 
                 else:
                     setup_info['FMM Order'] = ''
+                    setup_info['FMM Tol'] = ''
 
                 # Add gamma/beta & pyamg info to setup_info if there, else make
                 # sure it's recorded as absent in special_key
@@ -490,8 +506,9 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                 if new_result:
                     # Build mesh if not done so already
                     if mesh is None:
-                        logger.info("Reading Mesh with element size %s " +
+                        logger.info("Reading Mesh %s with element size %s " +
                                     " and mesh order %s...",
+                                    mesh_file_name,
                                     cell_size,
                                     order)
                         # read in using open-cascade with 0 refinements, this allows
@@ -596,12 +613,15 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                 print("method:", method)
                 print('degree:', degree)
                 if setup_info['method'] == 'nonlocal':
-                    if mesh_dim == 2:
-                        c = 0.5  # pylint: disable=C0103
+                    if fmm_order is not None:
+                        if mesh_dim == 2:
+                            c = 0.5  # pylint: disable=C0103
+                        else:
+                            c = 0.75  # pylint: disable=C0103
+                        print('Epsilon= %.2f^(%d+1) = %e'
+                              % (c, fmm_order, c**(fmm_order+1)))
                     else:
-                        c = 0.75  # pylint: disable=C0103
-                    print('Epsilon= %.2f^(%d+1) = %e'
-                          % (c, fmm_order, c**(fmm_order+1)))
+                        print("FMM Tol=%.2e" % fmm_tol)
                 if len(outer_side_lengths) > 1:
                     print("Outer Side Length:", outer_side_length)
 

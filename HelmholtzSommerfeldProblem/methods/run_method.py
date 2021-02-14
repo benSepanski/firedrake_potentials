@@ -21,6 +21,7 @@ method_options = {'pml': ['pml_type',
                           'quad_const',
                           'speed'],
                   'nonlocal': ['FMM Order',
+                               'FMM Tol',
                                'qbx_order',
                                'fine_order',
                                ],
@@ -168,11 +169,35 @@ def run_method(trial, method, wave_number,
         # Set defaults for qbx kwargs
         qbx_order = kwargs.get('qbx_order', degree+2)
         fine_order = kwargs.get('fine_order', 4 * degree)
-        fmm_order = kwargs.get('FMM Order', 6)
+        fmm_order = kwargs.get('FMM Order', None)
+        fmm_tol = kwargs.get('FMM Tol', None)
+        # make sure got either fmm_order xor fmm_tol
+        if fmm_order is None and fmm_tol is None:
+            raise ValueError("At least one of 'fmm_order', 'fmm_tol' must not "
+                             "be *None*")
+        if fmm_order is not None and fmm_tol is not None:
+            raise ValueError("At most one of 'fmm_order', 'fmm_tol' must not "
+                             "be *None*")
+        # if got fmm_tol, make a level-to-order
+        fmm_level_to_order = None
+        if fmm_tol is not None:
+            if not isinstance(fmm_tol, float):
+                raise TypeError("fmm_tol of type '%s' is not of type float" % type(fmm_tol))
+            if fmm_tol <= 0.0:
+                raise ValueError("fmm_tol of '%s' is less than or equal to 0.0" % fmm_tol)
+            from sumpy.expansion.level_to_order import FMMLibExpansionOrderFinder
+            fmm_level_to_order = FMMLibExpansionOrderFinder(fmm_tol)
+        # Otherwise, make sure we got a valid fmm_order
+        else:
+            if not isinstance(fmm_order, int):
+                raise TypeError("fmm_order of type '%s' is not of type int" % type(fmm_order))
+            if fmm_order < 1:
+                raise ValueError("fmm_order of '%s' is less than 1" % fmm_order)
 
         qbx_kwargs = {'qbx_order': qbx_order,
                       'fine_order': fine_order,
                       'fmm_order': fmm_order,
+                      'fmm_level_to_order': fmm_level_to_order,
                       'fmm_backend': 'fmmlib',
                       }
         # }}}
