@@ -19,7 +19,6 @@ from methods import run_method
 
 from firedrake.petsc import OptionsManager, PETSc
 from firedrake.solving_utils import KSPReasons
-from utils.hankel_function import hankel_function
 from utils.norm_functions import l2_norm, h1_norm
 from utils.to_2nd_order import to_2nd_order
 
@@ -70,14 +69,12 @@ mesh_options = {
     },
 }
 
-kappa_list = [10.0]
-#kappa_list = [0.1, 1.0, 5.0, 10.0]
-degree_list = [1]
+#kappa_list = [10.0]
+kappa_list = [0.1, 1.0, 5.0, 10.0]
+#degree_list = [1]
 #degree_list = [2, 3]
-#degree_list = [4]
-#method_list = ['transmission', 'pml', 'nonlocal']
-method_list = ['nonlocal']
-method_list = ['pml']
+degree_list = [4]
+method_list = ['transmission', 'pml', 'nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
