@@ -71,9 +71,9 @@ mesh_options = {
 
 #kappa_list = [10.0]
 kappa_list = [0.1, 1.0, 5.0, 10.0]
-#degree_list = [1]
+degree_list = [1]
 #degree_list = [2, 3]
-degree_list = [4]
+#degree_list = [4]
 method_list = ['transmission', 'pml', 'nonlocal']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
@@ -418,10 +418,8 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                 setup_info['kappa'] = str(float(kappa))
             else:
                 setup_info['kappa'] = str(kappa)
-            true_sol = None  # pylint: disable=C0103
 
-            trial = {'degree': degree,
-                     'true_sol': true_sol}
+            trial = {'degree': degree, 'kappa': kappa}
 
             for method in method_list:
                 solver_params = method_to_kwargs[method]['solver_parameters']
@@ -518,7 +516,7 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
 
                     kwargs = method_to_kwargs[method]
                     true_sol, comp_sol, snes_or_ksp = run_method.run_method(
-                        trial, method, kappa,
+                        trial, method,
                         cl_ctx=cl_ctx,
                         queue=queue,
                         clear_memoized_objects=clear_memoized_objects,
@@ -574,7 +572,9 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                     if visualize:
                         try:
                             trisurf(comp_sol)
+                            plt.title("Computed Solution")
                             trisurf(true_sol)
+                            plt.title("True Solution")
                             plt.show()
                         except Exception as e:
                             warning("Cannot plot figure. Error msg: '%s'", e)

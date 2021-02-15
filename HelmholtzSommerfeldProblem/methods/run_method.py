@@ -9,7 +9,7 @@ from .nonlocal_integral_eq import nonlocal_integral_eq
 from .transmission import transmission
 
 
-trial_options = set(['mesh', 'degree'])
+trial_options = set(['mesh', 'degree', 'kappa'])
 
 method_required_options = {'pml': set(['pml_min',
                                        'pml_max',
@@ -66,15 +66,16 @@ def get_true_sol(fspace, kappa, cl_ctx, queue):
 
 
 def trial_to_tuple(trial):
-    return (trial['mesh'], trial['degree'])
+    return (trial['mesh'], trial['degree'], trial['kappa'])
 
 
-def prepare_trial(trial, kappa, true_sol_name, cl_ctx, queue):
+def prepare_trial(trial, true_sol_name, cl_ctx, queue):
     tuple_trial = trial_to_tuple(trial)
     if tuple_trial not in prepared_trials:
 
         mesh = trial['mesh']
         degree = trial['degree']
+        kappa = trial['kappa']
 
         function_space = FunctionSpace(mesh, 'CG', degree)
         vect_function_space = VectorFunctionSpace(mesh, 'CG', degree)
@@ -90,7 +91,7 @@ def prepare_trial(trial, kappa, true_sol_name, cl_ctx, queue):
 memoized_objects = {}
 
 
-def run_method(trial, method, wave_number,
+def run_method(trial, method,
                cl_ctx=None,
                queue=None,
                clear_memoized_objects=False,
@@ -102,7 +103,6 @@ def run_method(trial, method, wave_number,
         :arg clear_memoized_objects: Destroy memoized objects if true.
         :arg trial: A dict mapping each trial option to a valid value
         :arg method: A valid method (see the keys of *method_options*)
-        :arg wave_number: The wave number
         :arg cl_ctx: the computing context
         :arg queue: the computing queue for the context
 
@@ -125,15 +125,16 @@ def run_method(trial, method, wave_number,
     scatterer_bdy_id = kwargs['scatterer_bdy_id']
     outer_bdy_id = kwargs['outer_bdy_id']
 
-    # Get degree
+    # Get degree and wave number
     degree = trial['degree']
+    wave_number = trial['kappa']
 
     # Get options prefix and solver parameters, if any
     options_prefix = kwargs.get('options_prefix', None)
     solver_parameters = dict(kwargs.get('solver_parameters', None))
 
     # Get prepared trial args in kwargs
-    prepared_trial = prepare_trial(trial, wave_number, true_sol_name, cl_ctx, queue)
+    prepared_trial = prepare_trial(trial, true_sol_name, cl_ctx, queue)
     mesh, fspace, vfspace, true_sol, true_sol_grad_expr = prepared_trial
 
     # Create a place to memoize any objects if necessary
