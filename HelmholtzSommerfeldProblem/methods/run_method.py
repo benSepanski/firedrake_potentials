@@ -1,13 +1,15 @@
+import numpy as np
+
 from math import log
 from firedrake import FunctionSpace, VectorFunctionSpace, Function, grad, \
-    TensorFunctionSpace
+    TensorFunctionSpace, SpatialCoordinate
 
 from .pml import pml
 from .nonlocal_integral_eq import nonlocal_integral_eq
 from .transmission import transmission
 
 
-trial_options = set(['mesh', 'degree', 'true_sol_expr'])
+trial_options = set(['mesh', 'degree'])
 
 method_required_options = {'pml': set(['pml_min',
                                        'pml_max',
@@ -31,11 +33,43 @@ method_options = {'pml': ['pml_type',
 prepared_trials = {}
 
 
+def get_true_sol(fspace, kappa, cl_ctx, queue):
+    """
+    Get the ufl expression for the true solution (3D)
+    or a function with the evaluated solution (2D)
+    """
+    mesh_dim = fspace.mesh().geometric_dimension()
+    if mesh_dim == 3:
+        spatial_coord = SpatialCoordinate(fspace.mesh())
+        x, y, z = spatial_coord  # pylint: disable=C0103
+        norm = sqrt(x**2 + y**2 + z**2)
+        return Constant(1j / (4*pi)) / norm * exp(1j * kappa * norm)
+
+    if mesh_dim == 2:
+        # Evaluate true-sol using sumpy
+        from sumpy.p2p import P2P
+        from sumpy.kernel import HelmholtzKernel
+        # https://github.com/inducer/sumpy/blob/900745184d2618bc27a64c847f247e01c2b90b02/examples/curve-pot.py#L87-L88
+        p2p = P2P(cl_ctx, [HelmholtzKernel(dim=2)], exclude_self=False,
+                  value_dtypes=np.complex128)
+        # source is just (0, 0)
+        sources = np.array([[0.0],[0.0]])
+        strengths = np.array([[1.0], [1.0]])
+        # targets are everywhere
+        targets = np.array([Function(fspace).interpolate(x_i).dat.data
+                            for x_i in SpatialCoordinate(fspace.mesh())])
+        evt, (true_sol_arr,) = p2p(queue, targets, sources, strengths, k=kappa)
+        true_sol = Function(fspace)
+        true_sol.dat.data[:] = true_sol_arr[:]
+        return true_sol
+    raise ValueError("Only meshes of dimension 2, 3 supported")
+
+
 def trial_to_tuple(trial):
-    return (trial['mesh'], trial['degree'], trial['true_sol_expr'])
+    return (trial['mesh'], trial['degree'])
 
 
-def prepare_trial(trial, true_sol_name):
+def prepare_trial(trial, kappa, true_sol_name, cl_ctx, queue):
     tuple_trial = trial_to_tuple(trial)
     if tuple_trial not in prepared_trials:
 
@@ -45,10 +79,10 @@ def prepare_trial(trial, true_sol_name):
         function_space = FunctionSpace(mesh, 'CG', degree)
         vect_function_space = VectorFunctionSpace(mesh, 'CG', degree)
 
-        true_sol_expr = trial['true_sol_expr']
-        true_sol = Function(function_space).interpolate(true_sol_expr)
+        true_sol = get_true_sol(function_space, kappa, cl_ctx, queue)
+        true_sol = Function(function_space).interpolate(true_sol)
         prepared_trials[tuple_trial] = (mesh, function_space, vect_function_space,
-                                        true_sol, grad(true_sol_expr))
+                                        true_sol, grad(true_sol))
 
     return prepared_trials[tuple_trial]
 
@@ -57,6 +91,8 @@ memoized_objects = {}
 
 
 def run_method(trial, method, wave_number,
+               cl_ctx=None,
+               queue=None,
                clear_memoized_objects=False,
                true_sol_name="True Solution",
                comp_sol_name="Computed Solution", **kwargs):
@@ -67,6 +103,8 @@ def run_method(trial, method, wave_number,
         :arg trial: A dict mapping each trial option to a valid value
         :arg method: A valid method (see the keys of *method_options*)
         :arg wave_number: The wave number
+        :arg cl_ctx: the computing context
+        :arg queue: the computing queue for the context
 
         kwargs should include the boundary id of the scatterer as 'scatterer_bdy_id'
         and the boundary id of the outer boundary as 'outer_bdy_id'
@@ -77,6 +115,11 @@ def run_method(trial, method, wave_number,
     if clear_memoized_objects:
         global memoized_objects
         memoized_objects = {}
+
+    if cl_ctx is None:
+        raise ValueError("Missing cl_ctx")
+    if queue is None:
+        raise ValueError("Missing queue")
 
     # Get boundary ids
     scatterer_bdy_id = kwargs['scatterer_bdy_id']
@@ -90,7 +133,7 @@ def run_method(trial, method, wave_number,
     solver_parameters = dict(kwargs.get('solver_parameters', None))
 
     # Get prepared trial args in kwargs
-    prepared_trial = prepare_trial(trial, true_sol_name)
+    prepared_trial = prepare_trial(trial, wave_number, true_sol_name, cl_ctx, queue)
     mesh, fspace, vfspace, true_sol, true_sol_grad_expr = prepared_trial
 
     # Create a place to memoize any objects if necessary
@@ -132,9 +175,6 @@ def run_method(trial, method, wave_number,
         snes_or_ksp = snes
 
     elif method == 'nonlocal':
-        # Get required arguments
-        queue = kwargs['queue']
-
         # Build DG spaces if not already built
         if 'dgfspace' not in memoized_objects[memo_key]:
             memoized_objects[memo_key]['dgfspace'] = \
@@ -186,8 +226,9 @@ def run_method(trial, method, wave_number,
         # Otherwise, make sure we got a valid fmm_order
         else:
             if not isinstance(fmm_order, int):
-                raise TypeError("fmm_order of type '%s' is not of type int" % type(fmm_order))
-            if fmm_order < 1:
+                if fmm_order != False:
+                    raise TypeError("fmm_order of type '%s' is not of type int" % type(fmm_order))
+            if fmm_order != False and fmm_order < 1:
                 raise ValueError("fmm_order of '%s' is less than 1" % fmm_order)
 
         qbx_kwargs = {'qbx_order': qbx_order,

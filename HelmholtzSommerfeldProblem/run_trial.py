@@ -70,12 +70,14 @@ mesh_options = {
     },
 }
 
-kappa_list = [0.1, 1.0, 5.0, 10.0]
-#degree_list = [1]
+kappa_list = [10.0]
+#kappa_list = [0.1, 1.0, 5.0, 10.0]
+degree_list = [1]
 #degree_list = [2, 3]
-degree_list = [4]
-method_list = ['transmission', 'nonlocal', 'pml']
-#method_list = ['nonlocal']
+#degree_list = [4]
+#method_list = ['transmission', 'pml', 'nonlocal']
+method_list = ['nonlocal']
+method_list = ['pml']
 # to use pyamg for the nonlocal method, use 'pc_type': 'pyamg'
 # SPECIAL KEYS for preconditioning (these are all passed through petsc options
 #              via the command line or *method_to_kwargs*):
@@ -107,7 +109,6 @@ method_to_kwargs = {
                               }
     },
     'nonlocal': {
-        'queue': queue,
         'options_prefix': 'nonlocal',
         'solver_parameters': {'pc_type': 'lu',
                               'ksp_monitor': None,
@@ -156,6 +157,8 @@ def get_fmm_order_or_tol(kappa, h):
 
     # Exactly one of these must be None
     return {'fmm_order': None, 'fmm_tol': fmm_tol}
+    #return {'fmm_order': fmm_order, 'fmm_tol': None}
+    #return {'fmm_order': False, 'fmm_tol': None}
 
 # }}}
 
@@ -307,22 +310,6 @@ else:
     raise ValueError("Unrecognized mesh name '%s'." % mesh_name)
 
 
-def get_true_sol_expr(spatial_coord):
-    """
-    Get the ufl expression for the true solution
-    """
-    if mesh_dim == 3:
-        x, y, z = spatial_coord  # pylint: disable=C0103
-        norm = sqrt(x**2 + y**2 + z**2)
-        return Constant(1j / (4*pi)) / norm * exp(1j * kappa * norm)
-
-    if mesh_dim == 2:
-        x, y = spatial_coord  # pylint: disable=C0103
-        return Constant(1j / 4) * hankel_function(kappa * sqrt(x**2 + y**2),
-                                                  n=hankel_cutoff)
-    raise ValueError("Only meshes of dimension 2, 3 supported")
-
-
 # Set kwargs that don't expect user to change
 # (some of these are for just pml, but we don't
 #  expect the user to want to change them
@@ -434,10 +421,10 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                 setup_info['kappa'] = str(float(kappa))
             else:
                 setup_info['kappa'] = str(kappa)
-            true_sol_expr = None  # pylint: disable=C0103
+            true_sol = None  # pylint: disable=C0103
 
             trial = {'degree': degree,
-                     'true_sol_expr': true_sol_expr}
+                     'true_sol': true_sol}
 
             for method in method_list:
                 solver_params = method_to_kwargs[method]['solver_parameters']
@@ -532,16 +519,11 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                     # make sure to store mesh in trial
                     trial['mesh'] = mesh
 
-                    # {{{  Compute true solution expression if haven't already
-                    if true_sol_expr is None:
-                        true_sol_expr = \
-                            get_true_sol_expr(SpatialCoordinate(mesh))
-                        trial['true_sol_expr'] = true_sol_expr
-                    # }}}
-
                     kwargs = method_to_kwargs[method]
                     true_sol, comp_sol, snes_or_ksp = run_method.run_method(
                         trial, method, kappa,
+                        cl_ctx=cl_ctx,
+                        queue=queue,
                         clear_memoized_objects=clear_memoized_objects,
                         comp_sol_name=method + " Computed Solution", **kwargs)
                     # After we've started running on this mesh+fspace degree, don't
@@ -613,14 +595,14 @@ for mesh_file_name, cell_size, outer_side_length in zip(current_mesh_file_name,
                 print("method:", method)
                 print('degree:', degree)
                 if setup_info['method'] == 'nonlocal':
-                    if fmm_order is not None:
+                    if fmm_order is not None and fmm_order != False:
                         if mesh_dim == 2:
                             c = 0.5  # pylint: disable=C0103
                         else:
                             c = 0.75  # pylint: disable=C0103
                         print('Epsilon= %.2f^(%d+1) = %e'
                               % (c, fmm_order, c**(fmm_order+1)))
-                    else:
+                    elif fmm_order != False:
                         print("FMM Tol=%.2e" % fmm_tol)
                 if len(outer_side_lengths) > 1:
                     print("Outer Side Length:", outer_side_length)

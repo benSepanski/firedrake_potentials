@@ -32,7 +32,8 @@ Next, we hack master loopy into the firedrake environment as loopyy and make vol
 .. code-block:: 
     pip install git+https://gitlab.tiker.net/ben_sepanski/loopy.git@loopy_to_loopyy#egg=loo.pyy
     pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/meshmode.git@loopy_to_loopyy
-    pip install --upgrade git+https://gitlab.tiker.net/benSepanski/pytential.git@loopy_to_loopyy ;
+    pip install --upgrade git+https://gitlab.tiker.net/ben_sepanski/pytential.git@loopy_to_loopyy ;
+    pip install --upgrade git+https://github.com/benSepanski/sumpy.git@loopy_to_loopyy ;
 
 Run :code:`pip list | grep loo`. If you see both :code:`loo.py` and :code:`loopy`,
 run :code:`pip uninstall loopy`. Run :code:`pip list | grep loo` again, and you should
